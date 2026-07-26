@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local Python environments
+.venv/
+venv/
+
+# IDE settings
+.idea/
+
+# Downloaded model weights
+*.pt
+
+# Local publishing workspace
+.publish_checkout/
