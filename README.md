@@ -52,3 +52,6 @@ PERCEPTION_ARCHITECTURE.md
 See `PERCEPTION_ARCHITECTURE.md` for the component boundaries, test gates, and
 planned path toward ROS 2, depth association, point clouds, costmaps, planning,
 and isolated flight control.
+
+See `GAZEBO_SIMULATION.md` for the multi-terminal Gazebo camera, ROS image
+bridge, perception-node, and image-viewer workflow.
