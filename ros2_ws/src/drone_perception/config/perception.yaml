@@ -1,0 +1,15 @@
+perception_node:
+  ros__parameters:
+    model_path: "~/models/yolov8n.pt"
+    confidence_threshold: 0.25
+    inference_image_size: 320
+    yolo_reacquire_seconds: 0.5
+    maximum_prediction_frames: 20
+    person_class_id: 0
+    maximum_lost_seconds: 2.0
+    device: ""
+    image_topic: "/camera/image_raw"
+    annotated_topic: "/perception/annotated_image"
+    detections_topic: "/perception/detections"
+    runner_topic: "/perception/runner"
+    target_topic: "/perception/runner_target"

@@ -1,0 +1,10 @@
+/**:
+  ros__parameters:
+    # Keep the validation flight link small enough for Gazebo + YOLO on a
+    # laptop. These are the only plugins used by takeoff, tracking and the
+    # telemetry recorder.
+    plugin_allowlist:
+      - command
+      - local_position
+      - setpoint_raw
+      - sys_status

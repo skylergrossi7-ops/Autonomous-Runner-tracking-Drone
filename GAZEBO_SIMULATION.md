@@ -13,17 +13,23 @@ sudo apt install \
   ros-jazzy-rqt-image-view
 ```
 
-## Terminal 1: start the custom world
+## Terminal 1: build and start the custom world
 
 ```bash
-source ~/.bashrc
 source /opt/ros/jazzy/setup.bash
+cd "/mnt/c/Users/skyle/OneDrive/Documents/Drone/ros2_ws"
+colcon build --symlink-install --packages-select drone_simulation
+source install/setup.bash
 
-gz sim -v4 -r \
-  "/mnt/c/Users/skyle/OneDrive/Documents/Drone/ros2_ws/src/drone_simulation/worlds/runner_tracking.sdf"
+ros2 launch drone_simulation runner_tracking.launch.py
 ```
 
 Ensure Gazebo is playing rather than paused.
+
+The launch file adds both the installed custom-model directory and the standard
+`~/ardupilot_gazebo/models` directory to `GZ_SIM_RESOURCE_PATH`. The latter must
+contain ArduPilot's `runway`, `iris_with_standoffs`, and `gimbal_small_3d`
+directories.
 
 ## Terminal 2: discover and bridge the camera
 
@@ -99,6 +105,30 @@ Start Gazebo first, then restart the bridge.
 
 No relevant ROS publisher is running in that ROS domain. Confirm that the image
 bridge remains open and that all terminals use the same `ROS_DOMAIN_ID`.
+
+### Gazebo cannot find `model://runway` or the lidar model
+
+First confirm that the ArduPilot models exist:
+
+```bash
+ls ~/ardupilot_gazebo/models/runway/model.sdf
+ls ~/ardupilot_gazebo/models/iris_with_standoffs/model.sdf
+ls ~/ardupilot_gazebo/models/gimbal_small_3d/model.sdf
+```
+
+Then rebuild the package and launch it through ROS:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd "/mnt/c/Users/skyle/OneDrive/Documents/Drone/ros2_ws"
+colcon build --symlink-install --packages-select drone_simulation
+source install/setup.bash
+ros2 launch drone_simulation runner_tracking.launch.py
+```
+
+Do not run `gz sdf -p` as the normal launch command. Its empty
+`sdf::findFile()` callback warning can appear while expanding unresolved
+`model://` includes outside the Gazebo server.
 
 ### `rqt_image_view: command not found`
 

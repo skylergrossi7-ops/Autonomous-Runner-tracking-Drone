@@ -13,5 +13,16 @@ venv/
 # Downloaded model weights
 *.pt
 
+# ROS 2 / colcon generated workspaces
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# ArduPilot and validation runtime artifacts
+*.bin
+*.tlog
+*.tlog.raw
+diagnostics/*.log
+
 # Local publishing workspace
 .publish_checkout/

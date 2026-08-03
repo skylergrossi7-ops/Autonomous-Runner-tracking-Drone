@@ -1,0 +1,10 @@
+# WSL/Gazebo flight-test overlay. The Gazebo ArduPilot plugin runs in
+# lockstep so actuator commands and physics cannot drift out of sync.
+SCHED_LOOP_RATE 100
+# Use the primary simulated IMU; the redundant synthetic IMU reports a
+# different acceleration sample rate under WSL and fails consistency checks.
+INS_USE2 0
+INS_USE3 0
+# Keep full arming checks by default. A narrowly scoped simulation-only
+# exception must be applied explicitly for a test and restored afterward.
+ARMING_SKIPCHK 0
