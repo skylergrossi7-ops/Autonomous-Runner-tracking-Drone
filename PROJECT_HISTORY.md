@@ -12,9 +12,7 @@ calculations could work together before the code was reorganized.
 ## 2. Modular laptop-camera perception
 
 Commit `35b0d53` separated camera input, person detection, runner selection,
-tracking, annotation, and pipeline coordination into testable classes. This
-milestone made it possible to diagnose components independently instead of
-maintaining one large script.
+tracking, annotation, and pipeline coordination into testable classes.
 
 ## 3. Gazebo camera and ROS 2 bridge
 
@@ -24,50 +22,50 @@ and image-viewer process.
 
 ## 4. Autonomous distance-controlled runner following
 
-This milestone adds three ROS 2 packages:
+This milestone added three ROS 2 packages:
 
 - `drone_perception`: asynchronous YOLO reacquisition and fast box tracking
 - `drone_control`: runner centering, distance regulation, MAVROS commands, and
   safety gating
 - `drone_simulation`: moving actor, custom Iris camera, and LiDAR world
 
-The controller estimates runner distance from the calibrated bounding-box area
-because the horizontal LiDAR beam sits above a ground-level person's body. The
-LiDAR remains an independent emergency obstacle stop. A proportional distance
-controller applies forward or reverse velocity to hold a configurable target,
-turns before translating when the runner is off-center, and stops on stale
-perception data.
-
-### Passing validation
-
 The protected simulation completed takeoff, moving-person detection, bounded
-following, and landing. It recorded:
+following, and landing. Its first passing validation held a selected 2.5 m
+distance with 0.121 m final error. The matching chart, CSV, and short-distance
+camera recording remain committed as historical evidence.
+
+## 5. Full-body extended-route demonstration
+
+The actor mesh was centered around its waist, so its original `z=0` trajectory
+placed its lower half below the runway. The trajectory now applies the measured
+1.3 m ground offset, keeping the complete animated person above the surface.
+The route was extended from 2.0 m to 9.5 m of travel.
+
+The recording harness now counts unique simulated camera messages instead of
+duplicating frames according to wall time when Gazebo runs slower than real
+time. A low-rate side camera is spawned only after takeoff, preventing its
+renderer from delaying SITL initialization or MAVLink traffic.
+
+### Verified result
 
 | Measurement | Result |
 |---|---:|
 | Desired trailing distance | 2.500 m |
-| Final estimated distance | 2.621 m |
-| Final distance error | 0.121 m |
-| Horizontal drone path | 0.357 m |
-| Fresh runner targets | 100% |
-| Minimum validation altitude | 2.190 m |
+| Final estimated distance | 2.918 m |
+| Final distance error | 0.418 m |
+| Horizontal drone path | 4.224 m |
+| Fresh runner targets | 99.7% |
+| Minimum validation altitude | 2.180 m |
 | Automated result | `FOLLOW_VALIDATION_PASS` |
 
-![Gazebo YOLO runner detection](docs/media/runner_detection_gazebo.png)
+![Full-body Gazebo YOLO detection](docs/media/runner_detection_full_body.png)
 
-![Distance-follow validation chart](docs/media/distance_follow_validation.png)
+[Annotated drone-camera follow video](docs/media/full_body_runner_follow_15s.mp4)
 
-▶️ [Watch the 15-second annotated follow video](docs/media/distance_follow_gazebo_15s.mp4)
+[External Gazebo drone-travel video](docs/media/gazebo_drone_travel_15s.mp4)
 
-Raw evidence is stored in
-[`docs/evidence/distance_follow_validation.csv`](docs/evidence/distance_follow_validation.csv).
-
-### Recorded follow demonstration
-
-A separate protected recording run also passed. The drone-camera MP4 shows the
-YOLO bounding box following the moving actor for 15.000 seconds. That run held
-100% fresh targets, moved 0.154 m, and finished at an estimated 2.295 m from
-the runner—0.205 m from the selected 2.5 m trailing distance—before landing.
+Raw telemetry is stored in
+[`docs/evidence/full_body_follow_validation.csv`](docs/evidence/full_body_follow_validation.csv).
 
 ### Safety boundaries
 

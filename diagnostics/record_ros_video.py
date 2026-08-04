@@ -1,7 +1,7 @@
-"""Record an exact-duration MP4 from a ROS image topic while tracking is active."""
+"""Record an exact-duration MP4 from unique ROS frames while tracking is active."""
 
 import sys
-import time
+import math
 
 import cv2
 import rclpy
@@ -25,9 +25,8 @@ class ActiveFollowVideoRecorder(Node):
         self._output_path = output_path
         self._duration = duration_seconds
         self._output_fps = output_fps
-        self._latest_frame = None
+        self._required_frames = math.ceil(duration_seconds * output_fps)
         self._active = False
-        self._started_at = None
         self._writer = None
         self._frames_written = 0
 
@@ -35,23 +34,18 @@ class ActiveFollowVideoRecorder(Node):
         self.create_subscription(
             Bool, "/tracking/enabled", self._activation_callback, 10
         )
-        self.create_timer(1.0 / output_fps, self._sample_frame)
         print("VIDEO_READY", flush=True)
 
     def _image_callback(self, message: Image) -> None:
-        self._latest_frame = self._bridge.imgmsg_to_cv2(
+        if not self._active:
+            return
+
+        frame = self._bridge.imgmsg_to_cv2(
             message, desired_encoding="bgr8"
         ).copy()
 
-    def _activation_callback(self, message: Bool) -> None:
-        self._active = bool(message.data)
-
-    def _sample_frame(self) -> None:
-        if not self._active or self._latest_frame is None:
-            return
-
         if self._writer is None:
-            height, width = self._latest_frame.shape[:2]
+            height, width = frame.shape[:2]
             self._writer = cv2.VideoWriter(
                 self._output_path,
                 cv2.VideoWriter_fourcc(*"mp4v"),
@@ -62,15 +56,17 @@ class ActiveFollowVideoRecorder(Node):
                 raise RuntimeError(
                     f"Could not open video output: {self._output_path}"
                 )
-            self._started_at = time.monotonic()
             print("VIDEO_RECORDING_STARTED", flush=True)
 
-        self._writer.write(self._latest_frame)
+        self._writer.write(frame)
         self._frames_written += 1
 
-        if time.monotonic() - self._started_at >= self._duration:
+        if self._frames_written >= self._required_frames:
             self._finish()
             rclpy.shutdown()
+
+    def _activation_callback(self, message: Bool) -> None:
+        self._active = bool(message.data)
 
     def _finish(self) -> None:
         if self._writer is not None:
@@ -88,15 +84,17 @@ class ActiveFollowVideoRecorder(Node):
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
+    if len(sys.argv) not in (4, 5):
         raise SystemExit(
-            "usage: record_ros_video.py IMAGE_TOPIC OUTPUT.mp4 DURATION_SECONDS"
+            "usage: record_ros_video.py IMAGE_TOPIC OUTPUT.mp4 "
+            "DURATION_SECONDS [OUTPUT_FPS]"
         )
     rclpy.init()
     node = ActiveFollowVideoRecorder(
         image_topic=sys.argv[1],
         output_path=sys.argv[2],
         duration_seconds=float(sys.argv[3]),
+        output_fps=float(sys.argv[4]) if len(sys.argv) == 5 else 10.0,
     )
     try:
         rclpy.spin(node)

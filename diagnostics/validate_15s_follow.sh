@@ -7,6 +7,8 @@ result="/tmp/follow_15s_validation.csv"
 result_artifact="${root}/diagnostics/follow_15s_validation.csv"
 video_result="/tmp/distance_follow_gazebo.mp4"
 video_artifact="${root}/diagnostics/distance_follow_gazebo.mp4"
+showcase_video_result="/tmp/gazebo_drone_travel_15s.mp4"
+showcase_video_artifact="${root}/diagnostics/gazebo_drone_travel_15s.mp4"
 export ARDUCOPTER_OVERLAY="${root}/diagnostics/follow_validation.parm"
 
 source /opt/ros/jazzy/setup.bash
@@ -87,6 +89,10 @@ camera_topic() {
   topics=$(gz topic -l)
   [[ $'\n'"${topics}"$'\n' == *$'\n/tracking_camera/image\n'* ]]
 }
+showcase_camera_topic() {
+  topics=$(gz topic -l)
+  [[ $'\n'"${topics}"$'\n' == *$'\n/showcase_camera/image\n'* ]]
+}
 follower_ready() {
   grep -q 'Runner follower ready' /tmp/follow_15s_follower.log 2>/dev/null
 }
@@ -104,6 +110,9 @@ tracking_disabled() {
 }
 video_ready() {
   grep -q 'VIDEO_READY' /tmp/follow_video.log 2>/dev/null
+}
+showcase_video_ready() {
+  grep -q 'VIDEO_READY' /tmp/showcase_video.log 2>/dev/null
 }
 connected() {
   # Supplying the type avoids a slow ROS graph type-discovery query while
@@ -186,7 +195,10 @@ printf '%s\n' 'TAKEOFF: simulation-only INS exception loaded at SITL startup'
 call_service_retry 'set GUIDED mode' \
   /mavros/set_mode mavros_msgs/srv/SetMode \
   "{base_mode: 0, custom_mode: 'GUIDED'}"
-sleep 3
+# Two rendering cameras intentionally reduce simulation speed. Give the EKF
+# 30 wall-clock seconds after GUIDED so ArduPilot accumulates enough simulated
+# sensor time to pass its remaining pre-arm checks.
+sleep 30
 call_service_retry 'arm vehicle' \
   /mavros/cmd/arming mavros_msgs/srv/CommandBool \
   "{value: true}"
@@ -229,7 +241,19 @@ pids+=("${follower_pid}")
 wait_for 'follower standby initialized' 60 follower_ready
 wait_for 'live pose and standby command telemetry' 60 recorder_data_ready
 
-rm -f "${video_result}" /tmp/follow_video.log
+printf '%s\n' 'START: post-takeoff Gazebo showcase camera'
+showcase_response=$(gz service -s /world/iris_runway/create \
+  --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean \
+  --timeout 10000 \
+  --req "sdf_filename: '${root}/diagnostics/showcase_camera.sdf', name: 'showcase_camera_rig'")
+printf '%s\n' "${showcase_response}"
+[[ "${showcase_response}" == *"data: true"* ]]
+wait_for 'Gazebo showcase camera topic' 20 showcase_camera_topic
+start_background bash "${root}/diagnostics/start_showcase_camera_bridge.sh"
+sleep 8
+
+rm -f "${video_result}" "${showcase_video_result}" \
+  /tmp/follow_video.log /tmp/showcase_video.log
 python "${root}/diagnostics/record_ros_video.py" \
   /perception/annotated_image "${video_result}" 15 \
   >/tmp/follow_video.log 2>&1 &
@@ -237,26 +261,46 @@ video_pid="$!"
 pids+=("${video_pid}")
 wait_for 'follow video recorder initialized' 30 video_ready
 
-timeout 30 ros2 topic pub --rate 5 --times 5 \
+python "${root}/diagnostics/record_ros_video.py" \
+  /showcase_camera/image "${showcase_video_result}" 15 5 \
+  >/tmp/showcase_video.log 2>&1 &
+showcase_video_pid="$!"
+pids+=("${showcase_video_pid}")
+wait_for 'Gazebo showcase recorder initialized' 30 showcase_video_ready
+
+# Keep publishing until the follower acknowledges the state. A short burst can
+# be consumed by the recorders before a CPU-loaded follower executor runs.
+timeout 60 ros2 topic pub --rate 5 \
   /tracking/enabled std_msgs/msg/Bool "{data: true}" \
   >/tmp/follow_enable.log 2>&1 &
 enable_pid="$!"
+pids+=("${enable_pid}")
 wait_for 'follower confirmed motion enabled' 30 tracking_enabled
 kill "${enable_pid}" 2>/dev/null || true
 printf '%s\n' 'FOLLOW_ACTIVE: 15 second timer started'
 sleep 15
-timeout 30 ros2 topic pub --rate 5 --times 5 \
+
+# Each recorder counts unique simulated-camera messages. Keep tracking active
+# until both streams contain their full 15 seconds of Gazebo motion, even when
+# the simulator runs slower than wall-clock real time.
+wait "${video_pid}"
+wait "${showcase_video_pid}"
+grep -q 'VIDEO_COMPLETE' /tmp/follow_video.log
+grep -q 'VIDEO_COMPLETE' /tmp/showcase_video.log
+
+timeout 60 ros2 topic pub --rate 5 \
   /tracking/enabled std_msgs/msg/Bool "{data: false}" \
   >/tmp/follow_disable.log 2>&1 &
 disable_pid="$!"
+pids+=("${disable_pid}")
 wait_for 'follower confirmed motion disabled' 30 tracking_disabled
 kill "${disable_pid}" 2>/dev/null || true
 printf '%s\n' 'FOLLOW_STOPPED: motion disabled after 15 seconds'
 
-wait "${video_pid}"
-grep -q 'VIDEO_COMPLETE' /tmp/follow_video.log
 cp "${video_result}" "${video_artifact}"
 printf 'VIDEO_ARTIFACT: %s\n' "${video_artifact}"
+cp "${showcase_video_result}" "${showcase_video_artifact}"
+printf 'SHOWCASE_VIDEO_ARTIFACT: %s\n' "${showcase_video_artifact}"
 
 kill -TERM -- "-${follower_pid}" 2>/dev/null || true
 wait "${follower_pid}" 2>/dev/null || true
