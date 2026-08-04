@@ -35,6 +35,8 @@ distance-controlled following.
 
 ![Passing distance-follow telemetry](docs/media/distance_follow_validation.png)
 
+▶️ [Watch the 15-second annotated drone-camera follow video](docs/media/distance_follow_gazebo_15s.mp4)
+
 The protected Gazebo validation achieved:
 
 - desired trailing distance: **2.5 m**
@@ -46,6 +48,9 @@ The protected Gazebo validation achieved:
 
 The raw CSV is available at
 [`docs/evidence/distance_follow_validation.csv`](docs/evidence/distance_follow_validation.csv).
+
+The linked MP4 contains 145 authentic ROS camera frames, is encoded at
+640×480, and has a verified duration of exactly 15.000 seconds.
 
 ## Run the current perception milestone
 

@@ -57,8 +57,17 @@ following, and landing. It recorded:
 
 ![Distance-follow validation chart](docs/media/distance_follow_validation.png)
 
+▶️ [Watch the 15-second annotated follow video](docs/media/distance_follow_gazebo_15s.mp4)
+
 Raw evidence is stored in
 [`docs/evidence/distance_follow_validation.csv`](docs/evidence/distance_follow_validation.csv).
+
+### Recorded follow demonstration
+
+A separate protected recording run also passed. The drone-camera MP4 shows the
+YOLO bounding box following the moving actor for 15.000 seconds. That run held
+100% fresh targets, moved 0.154 m, and finished at an estimated 2.295 m from
+the runner—0.205 m from the selected 2.5 m trailing distance—before landing.
 
 ### Safety boundaries
 

@@ -5,6 +5,8 @@ root="/mnt/c/Users/skyle/OneDrive/Documents/Drone"
 workspace="${root}/ros2_ws"
 result="/tmp/follow_15s_validation.csv"
 result_artifact="${root}/diagnostics/follow_15s_validation.csv"
+video_result="/tmp/distance_follow_gazebo.mp4"
+video_artifact="${root}/diagnostics/distance_follow_gazebo.mp4"
 export ARDUCOPTER_OVERLAY="${root}/diagnostics/follow_validation.parm"
 
 source /opt/ros/jazzy/setup.bash
@@ -99,6 +101,9 @@ tracking_enabled() {
 }
 tracking_disabled() {
   grep -q 'Tracking motion disabled' /tmp/follow_15s_follower.log 2>/dev/null
+}
+video_ready() {
+  grep -q 'VIDEO_READY' /tmp/follow_video.log 2>/dev/null
 }
 connected() {
   # Supplying the type avoids a slow ROS graph type-discovery query while
@@ -224,6 +229,14 @@ pids+=("${follower_pid}")
 wait_for 'follower standby initialized' 60 follower_ready
 wait_for 'live pose and standby command telemetry' 60 recorder_data_ready
 
+rm -f "${video_result}" /tmp/follow_video.log
+python "${root}/diagnostics/record_ros_video.py" \
+  /perception/annotated_image "${video_result}" 15 \
+  >/tmp/follow_video.log 2>&1 &
+video_pid="$!"
+pids+=("${video_pid}")
+wait_for 'follow video recorder initialized' 30 video_ready
+
 timeout 30 ros2 topic pub --rate 5 --times 5 \
   /tracking/enabled std_msgs/msg/Bool "{data: true}" \
   >/tmp/follow_enable.log 2>&1 &
@@ -239,6 +252,11 @@ disable_pid="$!"
 wait_for 'follower confirmed motion disabled' 30 tracking_disabled
 kill "${disable_pid}" 2>/dev/null || true
 printf '%s\n' 'FOLLOW_STOPPED: motion disabled after 15 seconds'
+
+wait "${video_pid}"
+grep -q 'VIDEO_COMPLETE' /tmp/follow_video.log
+cp "${video_result}" "${video_artifact}"
+printf 'VIDEO_ARTIFACT: %s\n' "${video_artifact}"
 
 kill -TERM -- "-${follower_pid}" 2>/dev/null || true
 wait "${follower_pid}" 2>/dev/null || true
