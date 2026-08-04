@@ -3,51 +3,66 @@
 This project is being developed incrementally from laptop-camera perception
 into an autonomous ROS 2 / Gazebo runner-following drone. The current milestone
 takes off, detects a moving person with YOLO, regulates a chosen trailing
-distance, and lands through MAVROS and ArduPilot SITL.
+distance, follows the runner, and lands through MAVROS and ArduPilot SITL.
 
 ## Current progress
 
 - Laptop-camera capture with explicit resource cleanup
 - YOLO person detection and persistent object tracking
-- Highest-confidence initial runner selection
-- Stable runner lock using the YOLO tracking ID
-- Two-second timeout before releasing a missing runner
+- Highest-confidence initial runner selection and stable tracking-ID lock
 - Bounding box, confidence, tracking state, and normalized image offsets
-- Separate classes for camera input, detection, tracking, annotation, and
-  pipeline coordination
-- Unit coverage for runner selection and target-loss behavior
+- Separate camera, detection, tracking, annotation, and pipeline classes
 - ROS 2 Jazzy perception, simulation, and flight-control packages
 - Gazebo Iris model with tracking camera and forward LiDAR
 - Explicit Boolean motion gate and stale-target stop
 - Configurable trailing distance with forward and reverse corrections
 - MAVROS body-frame velocity control with bounded speed and yaw
 - Protected takeoff-follow-land validation with an independent LAND watchdog
-- Passing 2.5 m distance-follow result with 0.121 m final error
+- Full-body moving actor on an extended 9.5 m Gazebo route
+- Passing follow run with 4.224 m of measured drone travel
 
 The original single-file prototype remains as the historical foundation.
 Git commits, pull requests, and `PROJECT_HISTORY.md` show how the project moved
 from that prototype to modular perception, Gazebo integration, and autonomous
 distance-controlled following.
 
-## Latest milestone: distance-controlled following
+## Latest milestone: full-body extended follow
 
-![YOLO runner detection in Gazebo](docs/media/runner_detection_gazebo.png)
+![Full-body YOLO runner detection](docs/media/runner_detection_full_body.png)
 
-![Passing distance-follow telemetry](docs/media/distance_follow_validation.png)
+[Watch the 15-second annotated drone-camera video](docs/media/full_body_runner_follow_15s.mp4)
 
-The protected Gazebo validation achieved:
+[Watch the 15-second external Gazebo travel video](docs/media/gazebo_drone_travel_15s.mp4)
+
+The external video makes the vehicle's translation visible from a fixed Gazebo
+camera. These start and end frames show the change in position:
+
+| Start | End |
+|---|---|
+| ![Gazebo follow start](docs/media/gazebo_travel_start.png) | ![Gazebo follow end](docs/media/gazebo_travel_end.png) |
+
+The protected validation achieved:
 
 - desired trailing distance: **2.5 m**
-- final estimated distance: **2.621 m**
-- final error: **0.121 m**
-- horizontal drone path: **0.357 m**
-- fresh target ratio: **100%**
+- final estimated distance: **2.918 m**
+- final distance error: **0.418 m**
+- horizontal drone path: **4.224 m**
+- fresh target ratio: **99.7%**
+- minimum validation altitude: **2.180 m**
 - result: **`FOLLOW_VALIDATION_PASS`**
 
-The raw CSV is available at
-[`docs/evidence/distance_follow_validation.csv`](docs/evidence/distance_follow_validation.csv).
+The raw evidence is available at
+[`docs/evidence/full_body_follow_validation.csv`](docs/evidence/full_body_follow_validation.csv).
 
-## Run the current perception milestone
+Both MP4 files contain only unique ROS/Gazebo image messages. The annotated
+camera video is 640x480 at 10 FPS with 150 frames; the external Gazebo video is
+480x270 at 5 FPS with 75 frames. Both have a verified duration of exactly
+15.000 seconds.
+
+The earlier short-distance video and evidence remain in the repository to
+preserve the visible development history.
+
+## Run the laptop-camera perception milestone
 
 Use a Windows Python environment so OpenCV can access the laptop camera:
 
@@ -70,9 +85,6 @@ perception/
   pipeline.py
   models.py
 tests/
-  test_runner_tracker.py
-run_camera.py
-PERCEPTION_ARCHITECTURE.md
 ros2_ws/src/drone_perception/
 ros2_ws/src/drone_control/
 ros2_ws/src/drone_simulation/
@@ -81,12 +93,9 @@ docs/media/
 docs/evidence/
 ```
 
-See `PERCEPTION_ARCHITECTURE.md` for the component boundaries, test gates, and
-planned path toward ROS 2, depth association, point clouds, costmaps, planning,
-and isolated flight control.
+See `PERCEPTION_ARCHITECTURE.md` for the component boundaries and planned path
+toward depth association, point clouds, costmaps, and path planning.
 
-See `GAZEBO_SIMULATION.md` for the multi-terminal Gazebo camera, ROS image
-bridge, perception-node, and image-viewer workflow.
-
-See `RUNNER_FOLLOWING.md` for the simulation flight workflow and
+See `GAZEBO_SIMULATION.md` for the Gazebo-to-ROS workflow,
+`RUNNER_FOLLOWING.md` for the simulation flight workflow, and
 `PROJECT_HISTORY.md` for the chronological development record.
