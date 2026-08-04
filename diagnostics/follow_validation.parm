@@ -1,0 +1,8 @@
+# Protected Gazebo-only flight validation overlay.
+SCHED_LOOP_RATE 100
+INS_USE2 0
+INS_USE3 0
+# This Gazebo model has no GPS sensor. Skip GPS lock (8), INS consistency (16)
+# and GPS configuration (4096). The mask is selected explicitly by the
+# protected validator and is never used by the default SITL launcher.
+ARMING_SKIPCHK 4120

@@ -1,0 +1,60 @@
+runner_follower:
+  ros__parameters:
+    # Stage 1: set enabled true and leave the next two false to inspect
+    # /tracking/cmd_vel without moving the drone.
+    enabled: true
+    forward_commands_enabled: false
+    publish_to_mavros: false
+
+    target_topic: "/perception/runner_target"
+    scan_topic: "/lidar/scan"
+    command_topic: "/tracking/cmd_vel"
+    activation_topic: "/tracking/enabled"
+    # PositionTarget carries FRAME_BODY_NED in every message, so this does not
+    # depend on the optional MAVROS SetMavFrame service.
+    mavros_raw_topic: "/mavros/setpoint_raw/local"
+
+    control_rate_hz: 10.0
+    # Apply short correction pulses instead of holding an old YOLO command
+    # across the full 5-8 second inference interval.
+    target_timeout_seconds: 3.0
+    scan_timeout_seconds: 4.0
+    minimum_obstacle_distance: 2.0
+    safety_angle_degrees: 35.0
+
+    target_area: 0.12
+    area_deadband: 0.02
+    # Explicit trailing-distance control. At the validated 2 m hover altitude,
+    # the simulated runner occupied about 0.022 of the image at 2.5 m range.
+    distance_control_enabled: true
+    desired_follow_distance: 2.5
+    distance_deadband: 0.10
+    # The runner moves at roughly 0.33 m/s in this world. This gain reaches
+    # that speed for the observed far-range error while remaining capped.
+    distance_gain: 1.2
+    distance_reference_distance: 2.5
+    distance_reference_area: 0.022
+    estimated_distance_topic: "/tracking/estimated_distance"
+    horizontal_deadband: 0.08
+    forward_alignment_threshold: 0.15
+    # The 1.0 gain produced correct continuous commands but only 0.116 m of
+    # measured motion in 15 s. Doubling it retains the 0.35 m/s hard cap while
+    # overcoming the simulated vehicle's low-speed response.
+    forward_gain: 2.0
+    yaw_gain: 0.3
+    maximum_forward_speed: 0.60
+    maximum_reverse_speed: 0.30
+    maximum_yaw_rate: 0.15
+
+    # Vertical framing is handled by the camera gimbal, independently of
+    # flight velocity. Positive image y commands the tested pitch direction.
+    # The validated tracking camera is now fixed at a downward angle.
+    gimbal_pitch_enabled: false
+    gimbal_pitch_topic: "/tracking/gimbal_pitch"
+    gimbal_initial_pitch: 0.0
+    gimbal_minimum_pitch: -0.6
+    gimbal_maximum_pitch: 1.2
+    gimbal_vertical_deadband: 0.12
+    gimbal_pitch_gain: 0.35
+    gimbal_maximum_pitch_rate: 0.25
+    gimbal_pitch_direction: 1.0
