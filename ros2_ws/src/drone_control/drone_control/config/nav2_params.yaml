@@ -1,0 +1,55 @@
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      transform_tolerance: 0.3
+      rolling_window: true
+      width: 30
+      height: 30
+      resolution: 0.10
+      robot_radius: 0.45
+      track_unknown_space: false
+      plugins: ["voxel_layer", "inflation_layer"]
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        publish_voxel_map: true
+        origin_z: 0.0
+        z_resolution: 0.25
+        z_voxels: 16
+        min_obstacle_height: 0.0
+        max_obstacle_height: 4.0
+        unknown_threshold: 15
+        mark_threshold: 0
+        combination_method: 1
+        observation_sources: depth_ai_environment
+        depth_ai_environment:
+          topic: /camera/depth_ai/filtered_points
+          data_type: "PointCloud2"
+          transport_type: "raw"
+          sensor_frame: ""
+          clearing: true
+          marking: true
+          observation_persistence: 1.5
+          expected_update_rate: 0.0
+          min_obstacle_height: 0.0
+          max_obstacle_height: 4.0
+          raytrace_min_range: 0.30
+          raytrace_max_range: 20.0
+          obstacle_min_range: 0.30
+          obstacle_max_range: 20.0
+          inf_is_valid: false
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.75
+
+      always_send_full_costmap: true

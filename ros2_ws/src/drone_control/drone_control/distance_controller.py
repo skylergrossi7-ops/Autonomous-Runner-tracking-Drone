@@ -81,3 +81,61 @@ class DistanceTrackingController:
             forward_speed = 0.0
 
         return TrackingCommand(forward_speed, yaw_rate)
+
+
+class TargetVectorController:
+    """Follow a metric forward/left target vector from AI-inferred depth."""
+
+    def __init__(
+        self,
+        desired_distance: float,
+        distance_deadband: float,
+        distance_gain: float,
+        heading_deadband: float,
+        yaw_gain: float,
+        maximum_forward_speed: float,
+        maximum_reverse_speed: float,
+        maximum_yaw_rate: float,
+        forward_alignment_threshold: float,
+    ) -> None:
+        if desired_distance <= 0.0:
+            raise ValueError("desired distance must be positive")
+        self.desired_distance = desired_distance
+        self.distance_deadband = distance_deadband
+        self.distance_gain = distance_gain
+        self.heading_deadband = heading_deadband
+        self.yaw_gain = yaw_gain
+        self.maximum_forward_speed = maximum_forward_speed
+        self.maximum_reverse_speed = maximum_reverse_speed
+        self.maximum_yaw_rate = maximum_yaw_rate
+        self.forward_alignment_threshold = forward_alignment_threshold
+
+    def calculate(self, forward: float, left: float) -> TrackingCommand:
+        if (
+            not math.isfinite(forward)
+            or not math.isfinite(left)
+            or forward <= 0.0
+        ):
+            return TrackingCommand()
+
+        heading = math.atan2(left, forward)
+        yaw_rate = 0.0
+        if abs(heading) > self.heading_deadband:
+            yaw_rate = clamp(
+                self.yaw_gain * heading,
+                -self.maximum_yaw_rate,
+                self.maximum_yaw_rate,
+            )
+
+        distance = math.hypot(forward, left)
+        distance_error = distance - self.desired_distance
+        forward_speed = 0.0
+        if abs(distance_error) > self.distance_deadband:
+            forward_speed = clamp(
+                self.distance_gain * distance_error,
+                -self.maximum_reverse_speed,
+                self.maximum_forward_speed,
+            )
+        if abs(heading) > self.forward_alignment_threshold:
+            forward_speed = 0.0
+        return TrackingCommand(forward_speed, yaw_rate)

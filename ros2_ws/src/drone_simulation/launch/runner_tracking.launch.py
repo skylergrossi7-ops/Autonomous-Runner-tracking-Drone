@@ -63,6 +63,8 @@ def generate_launch_description():
                     "ros_gz_bridge",
                     "parameter_bridge",
                     "/tracking/gimbal_pitch@std_msgs/msg/Float64]gz.msgs.Double",
+                    "/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image",
+                    "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
                 ],
                 output="screen",
             ),

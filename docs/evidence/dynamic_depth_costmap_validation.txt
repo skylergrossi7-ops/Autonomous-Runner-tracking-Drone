@@ -1,0 +1,17 @@
+Dynamic Depth Anything / YOLO / Nav2 validation
+Date: 2026-08-10
+
+Runner detections: 19
+Bounding-box height change: 94.1 px
+Bounding-box center change: 42.6 px
+Median raw points in runner box: 382
+Median filtered points in runner box: 187
+Silhouette point reduction: 51.0%
+Occupied costmap cells: minimum 1283, maximum 2035
+
+PASS dynamic runner motion
+PASS Depth Anything silhouette cutout
+PASS local costmap continuity
+
+Command:
+bash diagnostics/validate_dynamic_runner_cutout.sh

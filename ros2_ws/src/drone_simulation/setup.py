@@ -16,9 +16,10 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
         ("share/" + package_name + "/worlds", glob("worlds/*.sdf")),
+        ("share/" + package_name + "/config", glob("config/*.rviz")),
         (
-            "share/" + package_name + "/models/iris_with_gimbal_lidar",
-            glob("models/iris_with_gimbal_lidar/*.*"),
+            "share/" + package_name + "/models/iris_with_gimbal_depth",
+            glob("models/iris_with_gimbal_depth/*.*"),
         ),
     ],
     install_requires=["setuptools"],
