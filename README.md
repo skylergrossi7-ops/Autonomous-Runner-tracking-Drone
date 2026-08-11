@@ -1,9 +1,10 @@
 # Autonomous Runner Tracking Drone
 
 This project is being developed incrementally from laptop-camera perception
-into an autonomous ROS 2 / Gazebo runner-following drone. The current milestone
-takes off, detects a moving person with YOLO, regulates a chosen trailing
-distance, follows the runner, and lands through MAVROS and ArduPilot SITL.
+into an autonomous ROS 2 / Gazebo runner-following drone. The project has now
+progressed into monocular AI-depth mapping: it detects a moving runner, removes
+the runner silhouette from the generated 3D cloud, and maps nearby hazards in
+a Nav2 rolling voxel costmap.
 
 ## Current progress
 
@@ -20,13 +21,28 @@ distance, follows the runner, and lands through MAVROS and ArduPilot SITL.
 - Protected takeoff-follow-land validation with an independent LAND watchdog
 - Full-body moving actor on an extended 9.5 m Gazebo route
 - Passing follow run with 4.224 m of measured drone travel
+- Depth Anything V2 inference from the monocular RGB stream
+- Runner-aware 3D cloud masking from the live YOLO bounding box
+- Nav2 voxel mapping from the environment-only filtered cloud
+- Stable depth-1 sensor QoS and bounded point-cloud processing
+
+## Latest milestone: dynamic AI-depth obstacle mapping
+
+![YOLO, AI depth, runner cutout, and local costmap](docs/media/dynamic_depth_costmap_demo.png)
+
+[Watch the 20-second dynamic mapping demonstration](docs/media/dynamic_depth_costmap_demo.mp4)
+
+The moving-runner validation measured a **51.0% reduction** of points inside
+the live runner silhouette while the environmental costmap remained occupied
+between **1,283 and 2,035 cells**. The person moved through the scene without
+causing the filtered cloud or obstacle layer to collapse.
 
 The original single-file prototype remains as the historical foundation.
 Git commits, pull requests, and `PROJECT_HISTORY.md` show how the project moved
 from that prototype to modular perception, Gazebo integration, and autonomous
 distance-controlled following.
 
-## Latest milestone: full-body extended follow
+## Previous milestone: full-body extended follow
 
 ![Full-body YOLO runner detection](docs/media/runner_detection_full_body.png)
 

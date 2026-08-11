@@ -76,7 +76,39 @@ Raw telemetry is stored in
 - The validation harness requires a detected runner before enabling motion.
 - Main-flow and independent-watchdog LAND commands protect every test.
 
+## 6. Monocular AI depth, runner cutout, and local voxel costmap
+
+The forward RGB camera now feeds Depth Anything V2 on the laptop. The resulting
+depth image becomes an XYZ point cloud, while YOLO supplies the moving runner
+box. A masking node projects the points into the image and removes the runner
+surface before publishing an environment-only cloud to Nav2's voxel layer.
+
+Three static hazards beside the runway exercise the costmap without blocking
+the runner. High-bandwidth streams use depth-1 sensor QoS, the cloud is
+spatially sampled, and Nav2 / RViz retain observations across CPU inference
+gaps.
+
+### Verified result
+
+| Measurement | Result |
+|---|---:|
+| Moving-runner detections | 19 |
+| Bounding-box height change | 94.1 px |
+| Bounding-box center change | 42.6 px |
+| Raw points in runner box (median) | 382 |
+| Filtered points in runner box (median) | 187 |
+| Runner-silhouette point reduction | 51.0% |
+| Occupied costmap cells | 1,283–2,035 |
+| Dynamic validation | `PASS` |
+
+![Dynamic AI-depth and costmap dashboard](docs/media/dynamic_depth_costmap_demo.png)
+
+[Watch the 20-second dynamic depth/costmap demonstration](docs/media/dynamic_depth_costmap_demo.mp4)
+
+All earlier detection and autonomous-following media remain in `docs/media/`
+as chronological evidence of the project's development.
+
 ## Next milestone
 
-Build a local point cloud and rolling cost map, then add reactive obstacle
-avoidance while keeping person following and flight-control safety isolated.
+Connect live vehicle odometry to the rolling voxel costmap and add reactive
+obstacle avoidance while keeping runner tracking and flight safety isolated.

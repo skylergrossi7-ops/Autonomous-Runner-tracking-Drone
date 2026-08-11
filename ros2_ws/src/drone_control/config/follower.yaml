@@ -7,7 +7,6 @@ runner_follower:
     publish_to_mavros: false
 
     target_topic: "/perception/runner_target"
-    scan_topic: "/lidar/scan"
     command_topic: "/tracking/cmd_vel"
     activation_topic: "/tracking/enabled"
     # PositionTarget carries FRAME_BODY_NED in every message, so this does not
@@ -18,29 +17,16 @@ runner_follower:
     # Apply short correction pulses instead of holding an old YOLO command
     # across the full 5-8 second inference interval.
     target_timeout_seconds: 3.0
-    scan_timeout_seconds: 4.0
-    minimum_obstacle_distance: 2.0
-    safety_angle_degrees: 35.0
-
-    target_area: 0.12
-    area_deadband: 0.02
-    # Explicit trailing-distance control. At the validated 2 m hover altitude,
-    # the simulated runner occupied about 0.022 of the image at 2.5 m range.
-    distance_control_enabled: true
+    # AI depth supplies a metric forward/left/up target vector, so no bounding-box
+    # area calibration or LiDAR freshness gate is needed.
     desired_follow_distance: 2.5
     distance_deadband: 0.10
     # The runner moves at roughly 0.33 m/s in this world. This gain reaches
     # that speed for the observed far-range error while remaining capped.
     distance_gain: 1.2
-    distance_reference_distance: 2.5
-    distance_reference_area: 0.022
     estimated_distance_topic: "/tracking/estimated_distance"
-    horizontal_deadband: 0.08
+    heading_deadband: 0.05
     forward_alignment_threshold: 0.15
-    # The 1.0 gain produced correct continuous commands but only 0.116 m of
-    # measured motion in 15 s. Doubling it retains the 0.35 m/s hard cap while
-    # overcoming the simulated vehicle's low-speed response.
-    forward_gain: 2.0
     yaw_gain: 0.3
     maximum_forward_speed: 0.60
     maximum_reverse_speed: 0.30

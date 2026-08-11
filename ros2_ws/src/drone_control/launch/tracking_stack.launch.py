@@ -25,7 +25,17 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "image_topic",
                 default_value="/camera/image_raw",
-                description="ROS image topic produced by ros_gz_image.",
+                description="RGB topic received from the video link.",
+            ),
+            DeclareLaunchArgument(
+                "depth_topic",
+                default_value="/camera/depth_ai/depth_image",
+                description="Metric depth image inferred by Depth Anything V2.",
+            ),
+            DeclareLaunchArgument(
+                "camera_info_topic",
+                default_value="/camera/camera_info",
+                description="Monocular camera calibration topic.",
             ),
             DeclareLaunchArgument(
                 "forward_commands_enabled",
@@ -66,6 +76,28 @@ def generate_launch_description():
                         ),
                     },
                 ],
+                output="screen",
+            ),
+            Node(
+                package="drone_perception",
+                executable="depth_target_node",
+                name="depth_target_node",
+                parameters=[
+                    perception_config,
+                    {
+                        "depth_topic": LaunchConfiguration("depth_topic"),
+                        "camera_info_topic": LaunchConfiguration(
+                            "camera_info_topic"
+                        ),
+                    },
+                ],
+                output="screen",
+            ),
+            Node(
+                package="drone_perception",
+                executable="pointcloud_filter_node",
+                name="pointcloud_filter_node",
+                parameters=[perception_config],
                 output="screen",
             ),
         ]

@@ -1,8 +1,6 @@
-from glob import glob
-
 from setuptools import find_packages, setup
 
-package_name = 'drone_control'
+package_name = 'runner_perception'
 
 setup(
     name=package_name,
@@ -12,7 +10,6 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', glob('drone_control/config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,7 +24,10 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'lidar_node = drone_control.lidar_node:main',
+        "perception_node = runner_perception.perception_node:main",
+        "camera_info_node = runner_perception.camera_info_node:main",
+        "depth_anything_node = runner_perception.depth_anything_node:main",
+        "yolo_masking_node = runner_perception.yolo_masking_node:main",
         ],
     },
 )
