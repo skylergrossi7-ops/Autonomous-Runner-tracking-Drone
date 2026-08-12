@@ -142,3 +142,34 @@ temporal confirmation.
 
 All earlier videos and screenshots remain in `docs/media/` to preserve the
 project's development history.
+
+## 8. Runner-speed prediction and ground-filtered obstacle mapping
+
+The controller now estimates forward runner velocity from consecutive metric
+target vectors and adds bounded feed-forward to its distance correction. A
+filtered-cloud safety corridor calculates a braking-distance speed limit and
+stops motion when obstacle data becomes stale.
+
+The point-cloud pipeline removes the runner, fits a ground plane with RANSAC,
+and suppresses residual lower-image runway points produced by monocular depth.
+Nav2 requires multiple marked voxels, uses less inflation and displays free,
+inflated, high-cost and lethal regions in distinct colors.
+
+| Recorded runner-speed metric | Result |
+| --- | ---: |
+| Hover altitude | 2.22 m |
+| Maximum forward command | 2.50 m/s |
+| Drone horizontal travel | 9.05 m |
+| Nonzero MAVROS setpoints | 487 / 487 |
+| Runner target samples | 11 |
+| Filtered cloud samples | 25 |
+| Maximum cloud gap | 5.49 s |
+| Occupied costmap cells | 5,084–9,941 |
+| Rolling costmap travel | 8.70 m |
+
+![Runner-speed follow and sparse colored costmap](docs/media/runner_speed_follow_with_costmap.png)
+
+[Watch the synchronized runner-speed validation](docs/media/runner_speed_follow_with_costmap.mp4)
+
+The 2.5 m/s cap is validated in simulation only. Physical testing must start
+at a lower limit and retune braking distance for the actual airframe.

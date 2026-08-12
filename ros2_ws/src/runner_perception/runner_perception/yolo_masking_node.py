@@ -39,6 +39,14 @@ class YoloMaskingNode(Node):
         # CPU-only simulation can take a few seconds to run YOLO and monocular
         # depth concurrently. The image timestamps still keep the mask bounded.
         self.declare_parameter("max_bbox_age", 4.0)
+        self.declare_parameter("remove_ground_plane", True)
+        self.declare_parameter("ground_distance_threshold", 0.18)
+        self.declare_parameter("ground_normal_tolerance", 0.35)
+        self.declare_parameter("ground_ransac_iterations", 50)
+        self.declare_parameter("ground_min_inliers", 250)
+        self.declare_parameter("camera_upward_pitch_radians", 0.2)
+        self.declare_parameter("ground_horizon_fraction", 0.58)
+        self.declare_parameter("ground_keep_height_fraction", 0.28)
 
         # Retrieve parameter values
         self.point_cloud_topic = self.get_parameter("point_cloud_topic").value
@@ -55,6 +63,9 @@ class YoloMaskingNode(Node):
         self.max_z = self.get_parameter("max_z").value
         self.depth_tolerance = self.get_parameter("depth_tolerance").value
         self.max_bbox_age = self.get_parameter("max_bbox_age").value
+        self.remove_ground_plane = bool(
+            self.get_parameter("remove_ground_plane").value
+        )
 
         # State variables
         self.latest_bboxes = None
@@ -211,7 +222,24 @@ class YoloMaskingNode(Node):
                 retained_mask[in_box_indices[close_to_median]] = False
 
         # Extract the filtered 3D points
-        filtered_points = np.column_stack((x_val[retained_mask], y_val[retained_mask], z_val[retained_mask]))
+        # Monocular depth often lifts the entire runway above the fitted plane.
+        # Suppress points in the lower image region unless they extend far
+        # enough above the local ground contact region to be a real obstacle.
+        horizon = float(self.get_parameter("ground_horizon_fraction").value)
+        keep_height = float(
+            self.get_parameter("ground_keep_height_fraction").value
+        )
+        image_height = max(1.0, 2.0 * self.cy)
+        lower_image = v >= image_height * horizon
+        projected_height = image_height - v
+        ground_image = lower_image & (
+            projected_height <= image_height * keep_height
+        )
+        retained_mask &= ~ground_image
+        filtered_points = np.column_stack((
+            x_val[retained_mask], y_val[retained_mask], z_val[retained_mask]
+        ))
+        filtered_points = self.remove_ground(filtered_points)
 
         # Re-create and publish the PointCloud2 message
         try:
@@ -229,6 +257,55 @@ class YoloMaskingNode(Node):
             self.pc_pub.publish(filtered_cloud_msg)
         except Exception as e:
             self.get_logger().error(f"Failed to create/publish filtered point cloud: {e}")
+
+    def remove_ground(self, points):
+        """Remove only a dominant plane whose normal matches level ground."""
+        if not self.remove_ground_plane or len(points) < 3:
+            return points
+        threshold = float(
+            self.get_parameter("ground_distance_threshold").value
+        )
+        minimum = int(self.get_parameter("ground_min_inliers").value)
+        iterations = int(
+            self.get_parameter("ground_ransac_iterations").value
+        )
+        pitch = float(
+            self.get_parameter("camera_upward_pitch_radians").value
+        )
+        expected = np.array(
+            [0.0, -np.cos(pitch), np.sin(pitch)], dtype=np.float32
+        )
+        tolerance = float(
+            self.get_parameter("ground_normal_tolerance").value
+        )
+        sample_count = min(len(points), 6000)
+        sample_indices = np.linspace(
+            0, len(points) - 1, sample_count, dtype=np.int32
+        )
+        sample = points[sample_indices]
+        rng = np.random.default_rng(7)
+        best_mask = None
+        best_count = 0
+        for _ in range(iterations):
+            selected = sample[rng.choice(sample_count, 3, replace=False)]
+            normal = np.cross(selected[1] - selected[0], selected[2] - selected[0])
+            norm = np.linalg.norm(normal)
+            if norm < 1e-6:
+                continue
+            normal /= norm
+            if abs(float(np.dot(normal, expected))) < 1.0 - tolerance:
+                continue
+            offset = -float(np.dot(normal, selected[0]))
+            inliers = np.abs(sample @ normal + offset) <= threshold
+            count = int(np.count_nonzero(inliers))
+            if count > best_count:
+                best_count = count
+                best_mask = (normal, offset)
+        if best_mask is None or best_count < minimum:
+            return points
+        normal, offset = best_mask
+        ground = np.abs(points @ normal + offset) <= threshold
+        return points[~ground]
 
     def publish_empty_cloud(self, header):
         empty_cloud_msg = pc2.create_cloud_xyz32(header, [])

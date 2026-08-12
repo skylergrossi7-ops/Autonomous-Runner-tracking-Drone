@@ -97,11 +97,12 @@ class DemoRecorder(Node):
         grid = np.asarray(message.data, dtype=np.int16).reshape(
             message.info.height, message.info.width
         )
-        image = np.zeros(grid.shape, dtype=np.uint8)
-        image[grid < 0] = 80
-        image[(grid >= 0) & (grid < 50)] = 20
-        image[grid >= 50] = 255
-        image = cv2.applyColorMap(image, cv2.COLORMAP_HOT)
+        image = np.zeros((*grid.shape, 3), dtype=np.uint8)
+        image[grid < 0] = (70, 70, 70)       # unknown: grey
+        image[grid == 0] = (35, 35, 35)      # free: dark grey
+        image[(grid > 0) & (grid < 50)] = (0, 180, 255)  # inflated: amber
+        image[(grid >= 50) & (grid < 100)] = (0, 80, 255)  # high: orange
+        image[grid >= 100] = (0, 0, 255)     # lethal: red
         self.costmap = cv2.resize(image, (640, 480), interpolation=cv2.INTER_NEAREST)
 
 

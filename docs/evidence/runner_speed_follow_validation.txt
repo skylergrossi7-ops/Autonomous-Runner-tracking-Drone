@@ -1,0 +1,18 @@
+Runner-speed follow with ground-filtered rolling voxel costmap
+Recorded: 2026-08-12
+
+Hover altitude: 2.220 m
+Drone horizontal travel: 9.051 m
+Maximum forward command: 2.500 m/s
+Raw MAVROS setpoints: 487 (487 nonzero)
+Runner target samples: 11
+Runner bounding-box height change: 112.0 px
+Filtered cloud samples: 25
+Maximum filtered-cloud gap: 5.49 s
+Occupied costmap cells: min=5084, max=9941
+Rolling costmap origin travel: 8.700 m
+
+PASS moving actor
+PASS drone following
+PASS mapping while following
+PASS automatic landing sequence

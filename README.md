@@ -46,6 +46,21 @@ The recorded run moved the Iris 2.92 m while the costmap origin moved 2.90 m.
 It received 22 filtered clouds, maintained 15,782–18,965 occupied cells and
 passed the moving-actor, physical-following and mapping-while-following checks.
 
+### Runner-speed following with ground-filtered mapping
+
+The next stage accelerates the Gazebo actor to approximately 2.4 m/s and lets
+the safety-limited follower reach 2.5 m/s. Target-velocity feed-forward helps
+maintain trailing distance, while a forward point-cloud corridor limits speed
+from available braking distance.
+
+![Runner-speed tracking and colored costmap](docs/media/runner_speed_follow_with_costmap.png)
+
+[Watch the 50-second runner-speed validation](docs/media/runner_speed_follow_with_costmap.mp4)
+
+Ground-plane and lower-image suppression reduced the occupied map from the
+earlier 15,000–19,000-cell flood to 5,084–9,941 cells. The recorded vehicle
+traveled 9.05 m and its rolling costmap followed for 8.70 m.
+
 The moving-runner validation measured a **51.0% reduction** of points inside
 the live runner silhouette while the environmental costmap remained occupied
 between **1,283 and 2,035 cells**. The person moved through the scene without
