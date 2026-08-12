@@ -32,6 +32,20 @@ a Nav2 rolling voxel costmap.
 
 [Watch the 20-second dynamic mapping demonstration](docs/media/dynamic_depth_costmap_demo.mp4)
 
+### Autonomous follow with live rolling map
+
+The latest validation combines takeoff, moving-runner detection, metric target
+vectors, body-frame MAVROS velocity control, runner-masked AI-depth points and
+a rolling Nav2 voxel costmap in one flight.
+
+![YOLO tracking and live rolling voxel map](docs/media/follow_with_live_costmap.png)
+
+[Watch the 50-second follow-with-live-costmap recording](docs/media/follow_with_live_costmap.mp4)
+
+The recorded run moved the Iris 2.92 m while the costmap origin moved 2.90 m.
+It received 22 filtered clouds, maintained 15,782–18,965 occupied cells and
+passed the moving-actor, physical-following and mapping-while-following checks.
+
 The moving-runner validation measured a **51.0% reduction** of points inside
 the live runner silhouette while the environmental costmap remained occupied
 between **1,283 and 2,035 cells**. The person moved through the scene without

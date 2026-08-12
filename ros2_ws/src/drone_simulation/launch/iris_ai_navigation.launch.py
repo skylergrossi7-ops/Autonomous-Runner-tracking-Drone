@@ -26,6 +26,7 @@ def generate_launch_description():
 
     headless = LaunchConfiguration("headless")
     start_rviz = LaunchConfiguration("start_rviz")
+    use_live_odometry = LaunchConfiguration("use_live_odometry")
     model_code_path = LaunchConfiguration("model_code_path")
     checkpoint_path = LaunchConfiguration("checkpoint_path")
 
@@ -38,6 +39,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("headless", default_value="false"),
         DeclareLaunchArgument("start_rviz", default_value="false"),
+        DeclareLaunchArgument("use_live_odometry", default_value="false"),
         DeclareLaunchArgument(
             "model_code_path",
             default_value=os.path.expanduser("~/Depth-Anything-V2/metric_depth"),
@@ -76,11 +78,20 @@ def generate_launch_description():
             package="tf2_ros",
             executable="static_transform_publisher",
             name="odom_to_iris_base",
+            condition=UnlessCondition(use_live_odometry),
             arguments=[
                 "--x", "0", "--y", "0", "--z", "0.195",
                 "--roll", "0", "--pitch", "0", "--yaw", "1.5707963",
                 "--frame-id", "odom", "--child-frame-id", "base_link",
             ],
+        ),
+        Node(
+            package="drone_control",
+            executable="mavros_pose_tf",
+            name="mavros_pose_tf",
+            condition=IfCondition(use_live_odometry),
+            parameters=[{"use_sim_time": True}],
+            output="screen",
         ),
         Node(
             package="tf2_ros",
@@ -105,7 +116,14 @@ def generate_launch_description():
             name="runner_perception",
             parameters=[{
                 "show_window": False,
-                "inference_image_size": 256,
+                # Keep enough actor detail for reliable detection after the
+                # vehicle climbs to its two-metre tracking altitude.
+                # 320 is the lowest resolution that still detects this actor;
+                # the measured confidence is about 0.115.  Keeping inference
+                # here prevents neural processing from starving MAVLink
+                # heartbeats on a laptop CPU.
+                "inference_image_size": 320,
+                "confidence_threshold": 0.08,
                 "use_sim_time": True,
             }],
             additional_env=common_ai_environment,

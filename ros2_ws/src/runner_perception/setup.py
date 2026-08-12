@@ -27,7 +27,8 @@ setup(
         "perception_node = runner_perception.perception_node:main",
         "camera_info_node = runner_perception.camera_info_node:main",
         "depth_anything_node = runner_perception.depth_anything_node:main",
-        "yolo_masking_node = runner_perception.yolo_masking_node:main",
+            "yolo_masking_node = runner_perception.yolo_masking_node:main",
+            "target_vector_node = runner_perception.target_vector_node:main",
         ],
     },
 )

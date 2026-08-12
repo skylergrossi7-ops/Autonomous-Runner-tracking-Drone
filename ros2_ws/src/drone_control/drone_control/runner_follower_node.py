@@ -7,6 +7,7 @@ import rclpy
 from geometry_msgs.msg import Twist, Vector3Stamped
 from mavros_msgs.msg import PositionTarget
 from rcl_interfaces.msg import SetParametersResult
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from std_msgs.msg import Bool, Float64
@@ -169,7 +170,15 @@ class RunnerFollowerNode(Node):
 
         rate = float(self.get_parameter("control_rate_hz").value)
         self._control_period = 1.0 / rate
-        self.create_timer(1.0 / rate, self._control_callback)
+        # MAVLink guided-velocity setpoints must arrive continuously in wall
+        # time.  Gazebo's /clock slows significantly while both neural nets
+        # run, so a ROS-time timer can fall below ArduPilot's acceptance rate.
+        self._control_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self.create_timer(
+            1.0 / rate,
+            self._control_callback,
+            clock=self._control_clock,
+        )
         self.get_logger().info(
             "Runner follower ready; enabled=%s, forward=%s, mavros=%s"
             % (
@@ -261,7 +270,12 @@ class RunnerFollowerNode(Node):
         twist.angular.z = command.yaw_rate
         self._command_publisher.publish(twist)
 
-        if self._publish_to_mavros:
+        # Do not stream zero-velocity GUIDED targets before tracking is
+        # enabled: they override ArduPilot's takeoff position target and can
+        # leave the vehicle on the ground until its auto-disarm timeout.
+        # Once enabled, stale/missing perception still publishes a zero target
+        # so an already-moving vehicle stops safely.
+        if self._publish_to_mavros and self._enabled:
             self._mavros_raw_publisher.publish(
                 self._to_body_setpoint(command)
             )
