@@ -112,3 +112,33 @@ as chronological evidence of the project's development.
 
 Connect live vehicle odometry to the rolling voxel costmap and add reactive
 obstacle avoidance while keeping runner tracking and flight safety isolated.
+
+## 7. Physical following with a live rolling voxel map
+
+The follower now streams body-frame MAVROS velocity targets at a steady
+wall-clock rate, without overriding ArduPilot's takeoff command while tracking
+is disabled. Live MAVROS pose drives the `odom -> base_link` transform, allowing
+the filtered AI-depth cloud and Nav2 voxel costmap to move with the aircraft.
+
+The simulation uses a resource-aware YOLO setting of 320 pixels and a 0.08
+threshold because the stylized Gazebo actor scores unusually low at that input
+size. Real-camera operation should use a substantially higher threshold and
+temporal confirmation.
+
+| Recorded validation metric | Result |
+| --- | ---: |
+| Hover altitude | 1.22 m |
+| Drone horizontal travel | 2.92 m |
+| Nonzero MAVROS setpoints | 496 / 496 |
+| Runner target samples | 12 |
+| Filtered cloud samples | 22 |
+| Maximum cloud gap | 4.04 s |
+| Occupied costmap cells | 15,782–18,965 |
+| Rolling costmap travel | 2.90 m |
+
+![Physical following with live map updates](docs/media/follow_with_live_costmap.png)
+
+[Watch the synchronized 50-second validation](docs/media/follow_with_live_costmap.mp4)
+
+All earlier videos and screenshots remain in `docs/media/` to preserve the
+project's development history.

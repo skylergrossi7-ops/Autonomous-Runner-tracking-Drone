@@ -88,6 +88,11 @@ class PerceptionNode(Node):
             "/perception/detections",
             DETECTION_QOS,
         )
+        self.runner_publisher = self.create_publisher(
+            Detection2D,
+            "/perception/runner",
+            DETECTION_QOS,
+        )
 
         self.debug_image_publisher = self.create_publisher(
             Image,
@@ -208,6 +213,12 @@ class PerceptionNode(Node):
         self.detection_publisher.publish(
             detections_message
         )
+        if detections_message.detections:
+            runner = max(
+                detections_message.detections,
+                key=lambda detection: detection.results[0].hypothesis.score,
+            )
+            self.runner_publisher.publish(runner)
 
         debug_message = self.bridge.cv2_to_imgmsg(
             debug_frame,

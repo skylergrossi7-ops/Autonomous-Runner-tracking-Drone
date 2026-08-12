@@ -1,0 +1,18 @@
+Autonomous follow with live rolling voxel costmap
+Recorded: 2026-08-12
+
+Hover altitude: 1.220 m
+Drone horizontal travel: 2.917 m
+Maximum forward command: 0.800 m/s
+Raw MAVROS setpoints: 496 (496 nonzero)
+Runner target samples: 12
+Runner bounding-box height change: 42.6 px
+Filtered cloud samples: 22
+Maximum filtered-cloud gap: 4.04 s
+Occupied costmap cells: min=15782, max=18965
+Rolling costmap origin travel: 2.900 m
+
+PASS moving actor
+PASS drone following
+PASS mapping while following
+PASS automatic landing sequence
