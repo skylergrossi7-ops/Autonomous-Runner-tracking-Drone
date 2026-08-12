@@ -28,9 +28,20 @@ runner_follower:
     heading_deadband: 0.05
     forward_alignment_threshold: 0.15
     yaw_gain: 0.3
-    maximum_forward_speed: 0.60
+    # Final simulation runner-speed stage. Physical deployment must retune this
+    # limit from measured stopping distance and airframe performance.
+    maximum_forward_speed: 2.50
     maximum_reverse_speed: 0.30
     maximum_yaw_rate: 0.15
+    velocity_feedforward_gain: 0.8
+    maximum_feedforward_speed: 2.5
+    target_velocity_filter: 0.35
+    obstacle_cloud_topic: "/camera/depth_ai/filtered_points"
+    obstacle_timeout_seconds: 4.0
+    obstacle_corridor_half_width: 0.8
+    obstacle_vertical_half_height: 1.0
+    minimum_stopping_distance: 1.2
+    braking_deceleration: 1.5
 
     # Vertical framing is handled by the camera gimbal, independently of
     # flight velocity. Positive image y commands the tested pitch direction.

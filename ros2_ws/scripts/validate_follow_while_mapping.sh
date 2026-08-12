@@ -129,7 +129,7 @@ start_group "${log_dir}/runner_follower.log" \
   --params-file "${workspace}/install/drone_control/share/drone_control/config/follower.yaml" \
   -p use_sim_time:=true -p enabled:=false \
   -p forward_commands_enabled:=true -p publish_to_mavros:=true \
-  -p target_timeout_seconds:=4.0 -p maximum_forward_speed:=0.8
+  -p target_timeout_seconds:=4.0 -p maximum_forward_speed:=2.5
 sleep 25
 wait_for "AI runner target before arming" 12 target_ready
 

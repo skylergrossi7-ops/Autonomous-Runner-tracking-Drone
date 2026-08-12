@@ -11,6 +11,9 @@ from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from std_msgs.msg import Bool, Float64
+from sensor_msgs.msg import PointCloud2
+import sensor_msgs_py.point_cloud2 as pc2
+from rclpy.qos import qos_profile_sensor_data
 
 from .distance_controller import (
     TargetVectorController,
@@ -51,6 +54,17 @@ class RunnerFollowerNode(Node):
         self.declare_parameter("maximum_reverse_speed", 0.5)
         self.declare_parameter("maximum_yaw_rate", 0.6)
         self.declare_parameter("forward_alignment_threshold", 0.15)
+        self.declare_parameter("velocity_feedforward_gain", 0.8)
+        self.declare_parameter("maximum_feedforward_speed", 2.0)
+        self.declare_parameter("target_velocity_filter", 0.35)
+        self.declare_parameter(
+            "obstacle_cloud_topic", "/camera/depth_ai/filtered_points"
+        )
+        self.declare_parameter("obstacle_timeout_seconds", 4.0)
+        self.declare_parameter("obstacle_corridor_half_width", 0.8)
+        self.declare_parameter("obstacle_vertical_half_height", 1.0)
+        self.declare_parameter("minimum_stopping_distance", 1.2)
+        self.declare_parameter("braking_deceleration", 1.5)
         self.declare_parameter("gimbal_pitch_enabled", True)
         self.declare_parameter(
             "gimbal_pitch_topic", "/tracking/gimbal_pitch"
@@ -134,6 +148,11 @@ class RunnerFollowerNode(Node):
 
         self._latest_target: Optional[Vector3Stamped] = None
         self._target_received_at = None
+        self._previous_target = None
+        self._previous_target_at = None
+        self._estimated_runner_speed = 0.0
+        self._nearest_obstacle = math.inf
+        self._obstacle_received_at = None
 
         self._command_publisher = self.create_publisher(
             Twist,
@@ -166,6 +185,12 @@ class RunnerFollowerNode(Node):
             str(self.get_parameter("activation_topic").value),
             self._activation_callback,
             10,
+        )
+        self.create_subscription(
+            PointCloud2,
+            str(self.get_parameter("obstacle_cloud_topic").value),
+            self._obstacle_callback,
+            qos_profile_sensor_data,
         )
 
         rate = float(self.get_parameter("control_rate_hz").value)
@@ -229,8 +254,45 @@ class RunnerFollowerNode(Node):
         )
 
     def _target_callback(self, message: Vector3Stamped) -> None:
+        now = self._control_clock.now() if hasattr(self, "_control_clock") else None
+        if self._previous_target is not None and now is not None:
+            elapsed = (now - self._previous_target_at).nanoseconds / 1e9
+            if 0.05 <= elapsed <= 10.0:
+                measured = (
+                    message.vector.x - self._previous_target.vector.x
+                ) / elapsed
+                alpha = float(
+                    self.get_parameter("target_velocity_filter").value
+                )
+                self._estimated_runner_speed = (
+                    alpha * measured
+                    + (1.0 - alpha) * self._estimated_runner_speed
+                )
+        self._previous_target = message
+        self._previous_target_at = now
         self._latest_target = message
         self._target_received_at = self.get_clock().now()
+
+    def _obstacle_callback(self, message: PointCloud2) -> None:
+        points = pc2.read_points(
+            message, field_names=("x", "y", "z"), skip_nans=True
+        )
+        nearest = math.inf
+        if len(points):
+            # Cloud coordinates are camera optical: z forward, x right, y down.
+            corridor = (
+                (points["z"] > 0.0)
+                & (abs(points["x"]) <= float(
+                    self.get_parameter("obstacle_corridor_half_width").value
+                ))
+                & (abs(points["y"]) <= float(
+                    self.get_parameter("obstacle_vertical_half_height").value
+                ))
+            )
+            if corridor.any():
+                nearest = float(points["z"][corridor].min())
+        self._nearest_obstacle = nearest
+        self._obstacle_received_at = self.get_clock().now()
 
     def _is_fresh(self, received_at, timeout: float) -> bool:
         if received_at is None:
@@ -257,11 +319,41 @@ class RunnerFollowerNode(Node):
             forward=vector.x,
             left=vector.y,
         )
+        feedforward = max(
+            0.0,
+            min(
+                float(self.get_parameter("maximum_feedforward_speed").value),
+                float(self.get_parameter("velocity_feedforward_gain").value)
+                * self._estimated_runner_speed,
+            ),
+        )
         forward_speed = (
-            command.forward_speed if self._forward_enabled else 0.0
+            command.forward_speed + feedforward
+            if self._forward_enabled else 0.0
+        )
+        forward_speed = min(
+            forward_speed,
+            self._distance_controller.maximum_forward_speed,
+            self._safe_obstacle_speed(),
         )
 
         return TrackingCommand(forward_speed, command.yaw_rate)
+
+    def _safe_obstacle_speed(self) -> float:
+        timeout = float(
+            self.get_parameter("obstacle_timeout_seconds").value
+        )
+        if not self._is_fresh(self._obstacle_received_at, timeout):
+            return 0.0
+        clearance = self._nearest_obstacle - float(
+            self.get_parameter("minimum_stopping_distance").value
+        )
+        if clearance <= 0.0:
+            return 0.0
+        deceleration = float(
+            self.get_parameter("braking_deceleration").value
+        )
+        return math.sqrt(2.0 * deceleration * clearance)
 
     def _control_callback(self) -> None:
         command = self._safe_command()
