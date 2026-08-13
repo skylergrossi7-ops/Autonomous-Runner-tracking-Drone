@@ -35,7 +35,7 @@ class TargetVectorNode(Node):
         self.declare_parameter("target_topic", "/perception/runner_target")
         self.declare_parameter("runner_timeout_seconds", 4.0)
         self.declare_parameter("depth_window_radius", 6)
-        self.declare_parameter("camera_upward_pitch_radians", 0.2)
+        self.declare_parameter("camera_upward_pitch_radians", -0.20)
         self.declare_parameter("mount_forward_metres", 0.0)
 
         self._bridge = CvBridge()

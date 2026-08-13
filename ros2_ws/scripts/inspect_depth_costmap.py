@@ -57,9 +57,9 @@ class MappingInspector(Node):
         if len(points) == 0:
             return
         xyz = np.column_stack((points["x"], points["y"], points["z"]))
-        # camera_optical -> base_link for a camera tilted 0.2 rad upward.
-        sine = np.sin(0.2)
-        cosine = np.cos(0.2)
+        # camera_optical -> base_link for the 0.20 rad downward camera.
+        sine = np.sin(-0.20)
+        cosine = np.cos(-0.20)
         optical_to_base = np.array([
             [0.0, sine, cosine],
             [-1.0, 0.0, 0.0],

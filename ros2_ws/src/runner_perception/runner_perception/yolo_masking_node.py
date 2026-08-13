@@ -44,7 +44,7 @@ class YoloMaskingNode(Node):
         self.declare_parameter("ground_normal_tolerance", 0.35)
         self.declare_parameter("ground_ransac_iterations", 50)
         self.declare_parameter("ground_min_inliers", 250)
-        self.declare_parameter("camera_upward_pitch_radians", 0.2)
+        self.declare_parameter("camera_upward_pitch_radians", -0.20)
         self.declare_parameter("ground_horizon_fraction", 0.58)
         self.declare_parameter("ground_keep_height_fraction", 0.28)
         self.declare_parameter("output_frame", "camera_optical_frame")

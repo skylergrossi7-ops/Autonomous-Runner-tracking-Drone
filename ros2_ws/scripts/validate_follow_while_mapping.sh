@@ -104,7 +104,8 @@ call_service() {
 echo "START: Gazebo, perception, AI depth, masking, live TF, and Nav2"
 start_group "${log_dir}/integrated_launch.log" \
   ros2 launch drone_simulation iris_ai_navigation.launch.py \
-  headless:=true start_rviz:=false use_live_odometry:=true
+  headless:=true start_rviz:=false use_live_odometry:=true \
+  sky_mask_enabled:="${SKY_MASK_ENABLED:-true}"
 wait_for "Gazebo RGB camera" 45 gazebo_camera_ready
 
 echo "START: ArduPilot SITL"
@@ -123,7 +124,8 @@ wait_for "MAVROS connection" 45 connected
 echo "START: target projection and safe follower"
 start_group "${log_dir}/target_vector.log" \
   ros2 run runner_perception target_vector_node --ros-args \
-  -p use_sim_time:=true -p runner_timeout_seconds:=8.0
+  -p use_sim_time:=true -p runner_timeout_seconds:=8.0 \
+  -p camera_upward_pitch_radians:=-0.20
 start_group "${log_dir}/runner_follower.log" \
   ros2 run drone_control runner_follower --ros-args \
   --params-file "${workspace}/install/drone_control/share/drone_control/config/follower.yaml" \

@@ -29,6 +29,7 @@ def generate_launch_description():
     use_live_odometry = LaunchConfiguration("use_live_odometry")
     model_code_path = LaunchConfiguration("model_code_path")
     checkpoint_path = LaunchConfiguration("checkpoint_path")
+    sky_mask_enabled = LaunchConfiguration("sky_mask_enabled")
 
     common_ai_environment = {
         "OMP_NUM_THREADS": "2",
@@ -40,6 +41,11 @@ def generate_launch_description():
         DeclareLaunchArgument("headless", default_value="false"),
         DeclareLaunchArgument("start_rviz", default_value="false"),
         DeclareLaunchArgument("use_live_odometry", default_value="false"),
+        DeclareLaunchArgument(
+            "sky_mask_enabled",
+            default_value="true",
+            description="Filter the fixed-camera sky region from PointCloud2",
+        ),
         DeclareLaunchArgument(
             "model_code_path",
             default_value=os.path.expanduser("~/Depth-Anything-V2/metric_depth"),
@@ -99,7 +105,7 @@ def generate_launch_description():
             name="iris_base_to_camera_optical",
             arguments=[
                 "--x", "0", "--y", "0", "--z", "0.06",
-                "--roll", "-1.3707963", "--pitch", "0",
+                "--roll", "-1.7707963", "--pitch", "0",
                 "--yaw", "-1.5707963", "--frame-id", "base_link",
                 "--child-frame-id", "camera_optical_frame",
             ],
@@ -144,7 +150,7 @@ def generate_launch_description():
                 # Fixed Gazebo camera: the upper 46% is always above the
                 # runway horizon. Keep the diagnostic depth image intact but
                 # exclude those false monocular sky depths from PointCloud2.
-                "sky_mask_enabled": True,
+                "sky_mask_enabled": sky_mask_enabled,
                 "sky_horizon_fraction": 0.46,
                 "use_sim_time": True,
             }],
@@ -166,6 +172,7 @@ def generate_launch_description():
                 "remove_isolated_points": True,
                 "isolation_voxel_size": 0.20,
                 "isolation_min_points": 3,
+                "camera_upward_pitch_radians": -0.20,
             }],
             output="screen",
         ),
