@@ -123,13 +123,14 @@ wait_for "MAVROS connection" 45 connected
 echo "START: target projection and safe follower"
 start_group "${log_dir}/target_vector.log" \
   ros2 run runner_perception target_vector_node --ros-args \
-  -p use_sim_time:=true
+  -p use_sim_time:=true -p runner_timeout_seconds:=8.0
 start_group "${log_dir}/runner_follower.log" \
   ros2 run drone_control runner_follower --ros-args \
   --params-file "${workspace}/install/drone_control/share/drone_control/config/follower.yaml" \
   -p use_sim_time:=true -p enabled:=false \
   -p forward_commands_enabled:=true -p publish_to_mavros:=true \
-  -p target_timeout_seconds:=4.0 -p maximum_forward_speed:=2.5
+  -p target_timeout_seconds:=8.0 -p obstacle_timeout_seconds:=8.0 \
+  -p maximum_forward_speed:=2.5
 sleep 25
 wait_for "AI runner target before arming" 12 target_ready
 

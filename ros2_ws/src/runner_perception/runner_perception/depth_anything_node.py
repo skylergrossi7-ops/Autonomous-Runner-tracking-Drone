@@ -19,6 +19,8 @@ from rclpy.qos import (
 )
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
 
+from .sky_mask import mask_above_horizon
+
 
 MODEL_CONFIGS = {
     "vits": {
@@ -66,6 +68,8 @@ class DepthAnythingNode(Node):
         self.declare_parameter("maximum_inference_rate", 5.0)
         self.declare_parameter("temporal_smoothing_alpha", 0.55)
         self.declare_parameter("spatial_median_kernel", 3)
+        self.declare_parameter("sky_mask_enabled", False)
+        self.declare_parameter("sky_horizon_fraction", 0.46)
         self.declare_parameter("image_topic", "/camera/image_raw")
         self.declare_parameter("camera_info_topic", "/camera/camera_info")
         self.declare_parameter("depth_topic", "/camera/depth_ai/depth_image")
@@ -177,8 +181,6 @@ class DepthAnythingNode(Node):
         now = time.monotonic()
         if maximum_rate > 0.0 and now - self._last_inference_at < 1.0 / maximum_rate:
             return
-        self._last_inference_at = now
-
         try:
             bgr = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
             with torch.inference_mode():
@@ -218,11 +220,23 @@ class DepthAnythingNode(Node):
             if not rclpy.ok():
                 return
             self._depth_publisher.publish(depth_message)
+            cloud_depth = mask_above_horizon(
+                depth,
+                enabled=bool(self.get_parameter("sky_mask_enabled").value),
+                horizon_fraction=float(
+                    self.get_parameter("sky_horizon_fraction").value
+                ),
+            )
             self._points_publisher.publish(
-                self._depth_to_pointcloud(depth, depth_message.header)
+                self._depth_to_pointcloud(cloud_depth, depth_message.header)
             )
         except Exception as error:
             self.get_logger().error(f"Depth inference failed: {error}")
+        finally:
+            # Rate-limit from completion, not start. On a CPU where inference
+            # itself exceeds the nominal period, start-time limiting otherwise
+            # runs the model continuously and starves MAVLink heartbeats.
+            self._last_inference_at = time.monotonic()
 
     def destroy_node(self):
         self._stop_worker.set()

@@ -200,3 +200,38 @@ persistence, a 20 m measured range, and a one-voxel marking threshold.
 [Watch the 20-second stable mapping validation](docs/media/stable_dynamic_costmap.mp4)
 
 Earlier media remains unchanged to preserve the visible development history.
+
+## 10. Final runner-following baseline before universal pathfinding
+
+A conservative fixed-horizon mask now removes false Gazebo sky depth only from
+the generated cloud; the diagnostic depth image remains raw. The mask is off by
+default for real cameras and enabled explicitly for the fixed simulation view.
+
+The first combined regression exposed CPU starvation: depth inference restarted
+immediately after slow frames and MAVROS repeatedly lost heartbeats. Rate
+limiting now begins after inference completes, and the flight profile uses the
+validated 1 Hz, stride-4 cloud configuration with eight-second freshness gates.
+
+| Final protected-flight metric | Result |
+| --- | ---: |
+| Takeoff altitude | 2.20 m |
+| Drone horizontal travel | 7.55 m |
+| Maximum forward command | 2.50 m/s |
+| Nonzero raw MAVROS setpoints | 273 / 491 |
+| Runner target samples | 5 |
+| Runner box-height change | 187.1 px |
+| Filtered cloud samples | 18 |
+| Maximum cloud gap | 4.53 s |
+| Occupied costmap cells | 5,280–19,658 |
+| Rolling costmap travel | 7.60 m |
+| Moving actor | PASS |
+| Drone following | PASS |
+| Mapping while following | PASS |
+| LAND command | Successful |
+
+![Final sky-filtered following baseline](docs/media/final_runner_follow_baseline.png)
+
+[Watch the synchronized 50-second validation](docs/media/final_runner_follow_baseline.mp4)
+
+This is the frozen runner-following baseline for the next phase: universal
+local pathfinding and reactive obstacle avoidance. All prior media is retained.
