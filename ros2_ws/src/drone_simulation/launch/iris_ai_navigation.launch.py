@@ -137,10 +137,15 @@ def generate_launch_description():
                 "checkpoint_path": checkpoint_path,
                 "depth_scale": 0.5,
                 "input_size": 256,
-                "pointcloud_stride": 2,
-                "maximum_inference_rate": 2.0,
+                "pointcloud_stride": 4,
+                "maximum_inference_rate": 1.0,
                 "temporal_smoothing_alpha": 0.55,
                 "spatial_median_kernel": 3,
+                # Fixed Gazebo camera: the upper 46% is always above the
+                # runway horizon. Keep the diagnostic depth image intact but
+                # exclude those false monocular sky depths from PointCloud2.
+                "sky_mask_enabled": True,
+                "sky_horizon_fraction": 0.46,
                 "use_sim_time": True,
             }],
             additional_env=common_ai_environment,

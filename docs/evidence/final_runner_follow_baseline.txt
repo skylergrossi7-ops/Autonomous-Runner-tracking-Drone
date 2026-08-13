@@ -1,0 +1,14 @@
+Pose samples: 22
+Drone horizontal travel: 7.548 m
+Maximum forward command: 2.500 m/s
+Raw MAVROS setpoints: 491 (273 nonzero)
+Accepted MAVROS velocity targets: 0 (0 nonzero)
+Runner target samples: 5
+Runner box-height change: 187.1 px
+Filtered cloud samples: 18
+Maximum filtered-cloud gap: 4.53 s
+Occupied costmap cells: min=5280, max=19658
+Rolling costmap origin travel: 7.600 m
+PASS moving actor
+PASS drone following
+PASS mapping while following

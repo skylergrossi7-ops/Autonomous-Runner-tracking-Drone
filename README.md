@@ -115,6 +115,22 @@ The recorded frame contains **3,254 occupied cells**. Independent validation
 observed **1,598 eligible environment points** and cost values `84`, `99`, and
 `100`, confirming inflated, high-cost, and lethal obstacle regions.
 
+## Final runner-following baseline before pathfinding
+
+The protected regression now combines takeoff, runner acquisition, continuous
+following, fixed-camera sky rejection, runner-masked depth, rolling Nav2
+mapping, tracking disable, and LAND in one run. Depth inference is rate-limited
+after completion so it cannot continuously starve MAVLink heartbeats on CPU.
+
+![Final runner-following baseline](docs/media/final_runner_follow_baseline.png)
+
+[Watch the synchronized 50-second final baseline](docs/media/final_runner_follow_baseline.mp4)
+
+The Iris reached 2.20 m, followed for 7.55 m, produced 273 nonzero MAVROS
+setpoints, maintained a populated rolling costmap, and completed the LAND
+command. This freezes runner following as the baseline before universal local
+pathfinding and reactive obstacle avoidance are introduced.
+
 Both MP4 files contain only unique ROS/Gazebo image messages. The annotated
 camera video is 640x480 at 10 FPS with 150 frames; the external Gazebo video is
 480x270 at 5 FPS with 75 frames. Both have a verified duration of exactly
