@@ -173,3 +173,30 @@ inflated, high-cost and lethal regions in distinct colors.
 
 The 2.5 m/s cap is validated in simulation only. Physical testing must start
 at a lower limit and retune braking distance for the actual airframe.
+
+## 9. Stable CPU-limited AI-depth voxel mapping
+
+The AI-depth publisher now processes only the newest camera frame in a worker
+thread, applies spatial and temporal smoothing, and removes isolated cloud
+speckles. This prevents a backlog of stale inference frames while Gazebo and
+YOLO share the laptop CPU.
+
+The empty local-costmap display was traced to a timing and range mismatch:
+Depth Anything sometimes produced 4–6 second cloud gaps, Nav2 retained points
+for only 0.5 seconds, and several simulated obstacles were estimated just past
+the old 14 m cutoff. The voxel layer now uses six-second observation
+persistence, a 20 m measured range, and a one-voxel marking threshold.
+
+| Recorded mapping metric | Result |
+| --- | ---: |
+| Maximum filtered points | 17,413 |
+| Points eligible for voxel marking | 1,598 |
+| Observed Nav2 cost values | 0, 84, 99, 100 |
+| Occupied cells in captured frame | 3,254 |
+| Moving actor and obstacles visible | Yes |
+
+![Stable AI-depth local costmap](docs/media/stable_dynamic_costmap.png)
+
+[Watch the 20-second stable mapping validation](docs/media/stable_dynamic_costmap.mp4)
+
+Earlier media remains unchanged to preserve the visible development history.

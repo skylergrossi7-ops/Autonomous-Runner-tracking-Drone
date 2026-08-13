@@ -2,6 +2,7 @@
 
 import os
 import sys
+import threading
 import time
 
 import cv2
@@ -63,6 +64,8 @@ class DepthAnythingNode(Node):
         self.declare_parameter("pointcloud_stride", 2)
         self.declare_parameter("input_size", 350)
         self.declare_parameter("maximum_inference_rate", 5.0)
+        self.declare_parameter("temporal_smoothing_alpha", 0.55)
+        self.declare_parameter("spatial_median_kernel", 3)
         self.declare_parameter("image_topic", "/camera/image_raw")
         self.declare_parameter("camera_info_topic", "/camera/camera_info")
         self.declare_parameter("depth_topic", "/camera/depth_ai/depth_image")
@@ -72,6 +75,10 @@ class DepthAnythingNode(Node):
         self._bridge = CvBridge()
         self._intrinsics = None
         self._last_inference_at = 0.0
+        self._latest_image = None
+        self._image_lock = threading.Lock()
+        self._stop_worker = threading.Event()
+        self._previous_depth = None
         self._model = self._load_model()
 
         self._depth_publisher = self.create_publisher(
@@ -88,6 +95,10 @@ class DepthAnythingNode(Node):
             self._camera_info_callback,
             SENSOR_QOS,
         )
+        self._worker = threading.Thread(
+            target=self._inference_loop, name="depth_anything_worker", daemon=True
+        )
+        self._worker.start()
         self.create_subscription(
             Image,
             str(self.get_parameter("image_topic").value),
@@ -139,6 +150,22 @@ class DepthAnythingNode(Node):
         self._intrinsics = (fx, fy, float(message.k[2]), float(message.k[5]))
 
     def _image_callback(self, message):
+        # Never queue camera frames behind slow neural inference. The worker
+        # always consumes the newest frame and silently replaces older ones.
+        with self._image_lock:
+            self._latest_image = message
+
+    def _inference_loop(self):
+        while rclpy.ok() and not self._stop_worker.is_set():
+            with self._image_lock:
+                message = self._latest_image
+                self._latest_image = None
+            if message is None:
+                self._stop_worker.wait(0.01)
+                continue
+            self._process_image(message)
+
+    def _process_image(self, message):
         if self._intrinsics is None:
             self.get_logger().warning(
                 "Waiting for /camera/camera_info", throttle_duration_sec=2.0
@@ -166,6 +193,19 @@ class DepthAnythingNode(Node):
                     (bgr.shape[1], bgr.shape[0]),
                     interpolation=cv2.INTER_LINEAR,
                 )
+            kernel = int(self.get_parameter("spatial_median_kernel").value)
+            if kernel >= 3:
+                if kernel % 2 == 0:
+                    kernel += 1
+                depth = cv2.medianBlur(depth, kernel)
+            alpha = float(self.get_parameter("temporal_smoothing_alpha").value)
+            alpha = min(1.0, max(0.0, alpha))
+            if self._previous_depth is not None and self._previous_depth.shape == depth.shape:
+                valid_now = np.isfinite(depth) & (depth > 0.0)
+                valid_old = np.isfinite(self._previous_depth) & (self._previous_depth > 0.0)
+                both = valid_now & valid_old
+                depth[both] = alpha * depth[both] + (1.0 - alpha) * self._previous_depth[both]
+            self._previous_depth = depth.copy()
             maximum = float(
                 self.get_parameter("maximum_publish_depth_metres").value
             )
@@ -183,6 +223,13 @@ class DepthAnythingNode(Node):
             )
         except Exception as error:
             self.get_logger().error(f"Depth inference failed: {error}")
+
+    def destroy_node(self):
+        self._stop_worker.set()
+        worker = getattr(self, "_worker", None)
+        if worker is not None and worker.is_alive():
+            worker.join(timeout=2.0)
+        return super().destroy_node()
 
     def _depth_to_pointcloud(self, depth, header):
         height, width = depth.shape

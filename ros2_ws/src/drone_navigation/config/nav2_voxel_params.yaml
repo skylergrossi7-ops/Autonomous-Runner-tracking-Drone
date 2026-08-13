@@ -1,0 +1,74 @@
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      transform_tolerance: 0.3
+
+      rolling_window: true
+      width: 20.0
+      height: 20.0
+      resolution: 0.10
+      robot_radius: 0.45
+      track_unknown_space: true
+
+      # The former 2D obstacle_layer is intentionally not loaded. The voxel
+      # layer raycasts the runner-masked AI-depth PointCloud2 instead.
+      plugins: ["voxel_layer", "inflation_layer"]
+      filters: []
+
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        combination_method: 1
+
+        # A 4 m vertical window, from -0.5 m to 3.5 m in odom. Nav2 supports
+        # at most 16 vertical voxels in this layer.
+        origin_z: -0.5
+        z_resolution: 0.25
+        z_voxels: 16
+        min_obstacle_height: -0.5
+        max_obstacle_height: 3.5
+        unknown_threshold: 15
+        mark_threshold: 1
+        publish_voxel_map: true
+
+        observation_sources: filtered_points
+        filtered_points:
+          topic: /camera/depth_ai/filtered_points
+          data_type: "PointCloud2"
+          transport_type: "raw"
+          sensor_frame: ""
+          marking: true
+          clearing: true
+          observation_persistence: 6.0
+          expected_update_rate: 0.0
+          min_obstacle_height: -0.5
+          max_obstacle_height: 3.5
+          obstacle_min_range: 0.30
+          obstacle_max_range: 20.0
+          raytrace_min_range: 0.30
+          raytrace_max_range: 20.0
+          inf_is_valid: false
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        inflation_radius: 0.75
+        cost_scaling_factor: 3.0
+        inflate_unknown: false
+        inflate_around_unknown: true
+
+      always_send_full_costmap: true
+      introspection_mode: "disabled"
+
+local_costmap_lifecycle_manager:
+  ros__parameters:
+    use_sim_time: true
+    autostart: true
+    bond_timeout: 4.0
+    node_names: ["local_costmap"]
