@@ -1,0 +1,7 @@
+Depth percentiles (5/50/95 m): (4.855501675605774, 15.848256587982178, 19.143629455566405)
+Obstacle-region median depths: {'left_crate': 13.120190620422363, 'tall_post': 15.394829750061035, 'right_barrel': 15.17465591430664}
+Maximum filtered points: 17413
+Points eligible for voxel marking: 1598
+Transformed height percentiles (1/50/99 m): (-0.6846248960048138, 9.976099735506478, 14.128738968071552)
+Planar range percentiles (1/50/99 m): (13.383604509299438, 16.341344423765417, 23.347394905013807)
+Costmap values: [0, 84, 99, 100]

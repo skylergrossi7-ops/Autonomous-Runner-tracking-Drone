@@ -47,6 +47,10 @@ class YoloMaskingNode(Node):
         self.declare_parameter("camera_upward_pitch_radians", 0.2)
         self.declare_parameter("ground_horizon_fraction", 0.58)
         self.declare_parameter("ground_keep_height_fraction", 0.28)
+        self.declare_parameter("output_frame", "camera_optical_frame")
+        self.declare_parameter("remove_isolated_points", True)
+        self.declare_parameter("isolation_voxel_size", 0.20)
+        self.declare_parameter("isolation_min_points", 3)
 
         # Retrieve parameter values
         self.point_cloud_topic = self.get_parameter("point_cloud_topic").value
@@ -240,12 +244,16 @@ class YoloMaskingNode(Node):
             x_val[retained_mask], y_val[retained_mask], z_val[retained_mask]
         ))
         filtered_points = self.remove_ground(filtered_points)
+        filtered_points = self.remove_isolated(filtered_points)
 
         # Re-create and publish the PointCloud2 message
         try:
             filtered_points = np.ascontiguousarray(filtered_points, dtype=np.float32)
             filtered_cloud_msg = PointCloud2()
             filtered_cloud_msg.header = msg.header
+            filtered_cloud_msg.header.frame_id = str(
+                self.get_parameter("output_frame").value
+            )
             filtered_cloud_msg.height = 1
             filtered_cloud_msg.width = len(filtered_points)
             filtered_cloud_msg.fields = msg.fields[:3]
@@ -306,6 +314,16 @@ class YoloMaskingNode(Node):
         normal, offset = best_mask
         ground = np.abs(points @ normal + offset) <= threshold
         return points[~ground]
+
+    def remove_isolated(self, points):
+        """Reject tiny monocular-depth speckles while retaining solid surfaces."""
+        if not bool(self.get_parameter("remove_isolated_points").value) or len(points) < 3:
+            return points
+        size = max(0.05, float(self.get_parameter("isolation_voxel_size").value))
+        minimum = max(1, int(self.get_parameter("isolation_min_points").value))
+        keys = np.floor(points / size).astype(np.int32)
+        _, inverse, counts = np.unique(keys, axis=0, return_inverse=True, return_counts=True)
+        return points[counts[inverse] >= minimum]
 
     def publish_empty_cloud(self, header):
         empty_cloud_msg = pc2.create_cloud_xyz32(header, [])

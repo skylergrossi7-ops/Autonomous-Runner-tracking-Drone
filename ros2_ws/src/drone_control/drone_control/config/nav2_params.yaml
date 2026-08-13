@@ -8,8 +8,8 @@ local_costmap:
       robot_base_frame: base_link
       transform_tolerance: 1.0
       rolling_window: true
-      width: 30
-      height: 30
+      width: 40
+      height: 40
       resolution: 0.10
       robot_radius: 0.45
       track_unknown_space: false
@@ -28,7 +28,7 @@ local_costmap:
         min_obstacle_height: 0.25
         max_obstacle_height: 6.0
         unknown_threshold: 15
-        mark_threshold: 2
+        mark_threshold: 1
         combination_method: 1
         observation_sources: depth_ai_environment
         depth_ai_environment:
@@ -38,20 +38,23 @@ local_costmap:
           sensor_frame: ""
           clearing: true
           marking: true
-          observation_persistence: 1.5
+          # CPU-only Depth Anything can produce 4-6 second cloud gaps while
+          # Gazebo and YOLO share the laptop. Retain the last valid obstacle
+          # observation across that measured gap; fresh rays still clear it.
+          observation_persistence: 6.0
           expected_update_rate: 0.0
           min_obstacle_height: 0.25
           max_obstacle_height: 6.0
           raytrace_min_range: 0.30
-          raytrace_max_range: 14.0
+          raytrace_max_range: 20.0
           obstacle_min_range: 0.30
-          obstacle_max_range: 14.0
+          obstacle_max_range: 20.0
           inf_is_valid: false
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: true
         cost_scaling_factor: 3.0
-        inflation_radius: 0.45
+        inflation_radius: 0.50
 
       always_send_full_costmap: true

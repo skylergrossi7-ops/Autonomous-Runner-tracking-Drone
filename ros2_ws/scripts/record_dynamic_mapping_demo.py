@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import time
 
 import cv2
@@ -8,6 +9,7 @@ import rclpy
 import sensor_msgs_py.point_cloud2 as pc2
 from cv_bridge import CvBridge
 from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -40,6 +42,7 @@ class DemoRecorder(Node):
         self.depth = None
         self.filtered = None
         self.costmap = None
+        self.vehicle_yaw = 0.0
         self.intrinsics = None
         self._topic_subscriptions = [
             self.create_subscription(
@@ -57,6 +60,9 @@ class DemoRecorder(Node):
             ),
             self.create_subscription(
                 OccupancyGrid, "/local_costmap/costmap", self.map_callback, MAP_QOS
+            ),
+            self.create_subscription(
+                PoseStamped, "/mavros/local_position/pose", self.pose_callback, 10
             ),
         ]
 
@@ -97,13 +103,34 @@ class DemoRecorder(Node):
         grid = np.asarray(message.data, dtype=np.int16).reshape(
             message.info.height, message.info.width
         )
+        grid = np.flipud(grid)
         image = np.zeros((*grid.shape, 3), dtype=np.uint8)
         image[grid < 0] = (70, 70, 70)       # unknown: grey
         image[grid == 0] = (35, 35, 35)      # free: dark grey
         image[(grid > 0) & (grid < 50)] = (0, 180, 255)  # inflated: amber
         image[(grid >= 50) & (grid < 100)] = (0, 80, 255)  # high: orange
         image[grid >= 100] = (0, 0, 255)     # lethal: red
-        self.costmap = cv2.resize(image, (640, 480), interpolation=cv2.INTER_NEAREST)
+        image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_NEAREST)
+        occupied = int(np.count_nonzero(grid >= 50))
+        center = (image.shape[1] // 2, image.shape[0] // 2)
+        cv2.circle(image, center, 8, (255, 255, 255), 2)
+        endpoint = (
+            int(center[0] + 42 * np.cos(self.vehicle_yaw)),
+            int(center[1] - 42 * np.sin(self.vehicle_yaw)),
+        )
+        cv2.arrowedLine(image, center, endpoint, (255, 255, 255), 3, tipLength=0.3)
+        cv2.putText(image, "DRONE", (center[0] + 12, center[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(image, f"occupied cells: {occupied}", (14, 466),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+        self.costmap = image
+
+    def pose_callback(self, message):
+        q = message.pose.orientation
+        self.vehicle_yaw = np.arctan2(
+            2.0 * (q.w * q.z + q.x * q.y),
+            1.0 - 2.0 * (q.y * q.y + q.z * q.z),
+        )
 
 
 def panel(image, title):
@@ -120,11 +147,19 @@ def panel(image, title):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--screenshot", required=True)
-    parser.add_argument("--duration", type=float, default=20.0)
+    parser.add_argument(
+        "--output", default="test_artifacts/live_grid.mp4"
+    )
+    parser.add_argument(
+        "--screenshot", default="test_artifacts/live_grid.png"
+    )
+    parser.add_argument("--duration", type=float, default=0.0,
+                        help="seconds to run; 0 keeps the display open")
     parser.add_argument("--fps", type=float, default=5.0)
     args = parser.parse_args()
+    for path in (args.output, args.screenshot):
+        directory = os.path.dirname(os.path.abspath(path))
+        os.makedirs(directory, exist_ok=True)
 
     rclpy.init()
     node = DemoRecorder()
@@ -137,10 +172,12 @@ def main():
     if not writer.isOpened():
         raise RuntimeError("Could not open MP4 writer")
 
-    deadline = time.monotonic() + args.duration
+    deadline = (
+        time.monotonic() + args.duration if args.duration > 0.0 else None
+    )
     next_frame = time.monotonic()
     last_frame = None
-    while time.monotonic() < deadline:
+    while deadline is None or time.monotonic() < deadline:
         rclpy.spin_once(node, timeout_sec=0.02)
         now = time.monotonic()
         if now < next_frame:
@@ -155,9 +192,13 @@ def main():
         ))
         last_frame = np.vstack((top, bottom))
         writer.write(last_frame)
+        cv2.imshow("Runner tracking and local mapping", last_frame)
+        if cv2.waitKey(1) & 0xFF in (ord("q"), ord("Q"), 27):
+            break
         next_frame += 1.0 / args.fps
 
     writer.release()
+    cv2.destroyAllWindows()
     if last_frame is not None:
         cv2.imwrite(args.screenshot, last_frame)
     node.destroy_node()

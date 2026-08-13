@@ -99,6 +99,22 @@ The protected validation achieved:
 The raw evidence is available at
 [`docs/evidence/full_body_follow_validation.csv`](docs/evidence/full_body_follow_validation.csv).
 
+## Stable CPU-limited AI-depth costmap
+
+The local map previously appeared blank between Depth Anything updates because
+the voxel layer retained observations for only 0.5 seconds while the laptop
+occasionally produced 4–6 second point-cloud gaps. The corrected configuration
+retains valid observations for six seconds, accepts the model's measured
+13–16 m obstacle estimates, and marks thin obstacles from one confirmed voxel.
+
+![Stable moving-actor voxel costmap](docs/media/stable_dynamic_costmap.png)
+
+[Watch the 20-second stable costmap demonstration](docs/media/stable_dynamic_costmap.mp4)
+
+The recorded frame contains **3,254 occupied cells**. Independent validation
+observed **1,598 eligible environment points** and cost values `84`, `99`, and
+`100`, confirming inflated, high-cost, and lethal obstacle regions.
+
 Both MP4 files contain only unique ROS/Gazebo image messages. The annotated
 camera video is 640x480 at 10 FPS with 150 frames; the external Gazebo video is
 480x270 at 5 FPS with 75 frames. Both have a verified duration of exactly

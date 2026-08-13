@@ -36,6 +36,7 @@ runner_follower:
     velocity_feedforward_gain: 0.8
     maximum_feedforward_speed: 2.5
     target_velocity_filter: 0.35
+    maximum_target_prediction_seconds: 1.0
     obstacle_cloud_topic: "/camera/depth_ai/filtered_points"
     obstacle_timeout_seconds: 4.0
     obstacle_corridor_half_width: 0.8

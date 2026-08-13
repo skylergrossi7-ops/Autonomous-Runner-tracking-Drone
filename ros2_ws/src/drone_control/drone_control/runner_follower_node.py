@@ -57,6 +57,7 @@ class RunnerFollowerNode(Node):
         self.declare_parameter("velocity_feedforward_gain", 0.8)
         self.declare_parameter("maximum_feedforward_speed", 2.0)
         self.declare_parameter("target_velocity_filter", 0.35)
+        self.declare_parameter("maximum_target_prediction_seconds", 1.0)
         self.declare_parameter(
             "obstacle_cloud_topic", "/camera/depth_ai/filtered_points"
         )
@@ -271,7 +272,7 @@ class RunnerFollowerNode(Node):
         self._previous_target = message
         self._previous_target_at = now
         self._latest_target = message
-        self._target_received_at = self.get_clock().now()
+        self._target_received_at = self._control_clock.now()
 
     def _obstacle_callback(self, message: PointCloud2) -> None:
         points = pc2.read_points(
@@ -279,7 +280,8 @@ class RunnerFollowerNode(Node):
         )
         nearest = math.inf
         if len(points):
-            # Cloud coordinates are camera optical: z forward, x right, y down.
+            # Filtered cloud coordinates are camera optical: z forward,
+            # x right and y down.
             corridor = (
                 (points["z"] > 0.0)
                 & (abs(points["x"]) <= float(
@@ -292,12 +294,12 @@ class RunnerFollowerNode(Node):
             if corridor.any():
                 nearest = float(points["z"][corridor].min())
         self._nearest_obstacle = nearest
-        self._obstacle_received_at = self.get_clock().now()
+        self._obstacle_received_at = self._control_clock.now()
 
     def _is_fresh(self, received_at, timeout: float) -> bool:
         if received_at is None:
             return False
-        age = (self.get_clock().now() - received_at).nanoseconds / 1e9
+        age = (self._control_clock.now() - received_at).nanoseconds / 1e9
         return age <= timeout
 
     def _safe_command(self) -> TrackingCommand:
@@ -311,12 +313,24 @@ class RunnerFollowerNode(Node):
             return TrackingCommand()
 
         vector = self._latest_target.vector
-        estimated_distance = math.hypot(vector.x, vector.y)
+        target_age = max(
+            0.0,
+            (self._control_clock.now() - self._target_received_at).nanoseconds / 1e9,
+        )
+        horizon = min(
+            target_age,
+            float(self.get_parameter("maximum_target_prediction_seconds").value),
+        )
+        predicted_forward = max(
+            0.05,
+            vector.x + max(0.0, self._estimated_runner_speed) * horizon,
+        )
+        estimated_distance = math.hypot(predicted_forward, vector.y)
         self._distance_publisher.publish(
             Float64(data=estimated_distance)
         )
         command = self._distance_controller.calculate(
-            forward=vector.x,
+            forward=predicted_forward,
             left=vector.y,
         )
         feedforward = max(
