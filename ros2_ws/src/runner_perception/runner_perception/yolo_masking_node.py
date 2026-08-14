@@ -36,6 +36,7 @@ class YoloMaskingNode(Node):
         self.declare_parameter("min_z", 0.1)
         self.declare_parameter("max_z", 10.0)
         self.declare_parameter("depth_tolerance", 1.0)  # meters around the median depth
+        self.declare_parameter("runner_bbox_padding_fraction", 0.08)
         # CPU-only simulation can take a few seconds to run YOLO and monocular
         # depth concurrently. The image timestamps still keep the mask bounded.
         self.declare_parameter("max_bbox_age", 4.0)
@@ -44,7 +45,7 @@ class YoloMaskingNode(Node):
         self.declare_parameter("ground_normal_tolerance", 0.35)
         self.declare_parameter("ground_ransac_iterations", 50)
         self.declare_parameter("ground_min_inliers", 250)
-        self.declare_parameter("camera_upward_pitch_radians", -0.20)
+        self.declare_parameter("camera_upward_pitch_radians", 0.20)
         self.declare_parameter("ground_horizon_fraction", 0.58)
         self.declare_parameter("ground_keep_height_fraction", 0.28)
         self.declare_parameter("output_frame", "camera_optical_frame")
@@ -149,21 +150,18 @@ class YoloMaskingNode(Node):
         # Determine current message timestamp in seconds
         pc_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
-        # Without a fresh runner box, retain the environmental cloud. Empty
-        # output would hide real obstacles from Nav2.
-        if self.latest_bboxes is None or self.latest_bbox_time is None:
-            self.pc_pub.publish(msg)
-            return
-
-        bbox_age = pc_time - self.latest_bbox_time
-        if bbox_age > self.max_bbox_age:
+        bboxes = self.latest_bboxes or []
+        bbox_age = (
+            pc_time - self.latest_bbox_time
+            if self.latest_bbox_time is not None else float("inf")
+        )
+        if bboxes and bbox_age > self.max_bbox_age:
             self.get_logger().warn(
                 f"YOLO bounding boxes are too stale (age: {bbox_age:.2f}s, threshold: {self.max_bbox_age:.2f}s). "
-                f"Passing through the cloud for Nav2 safety.",
+                f"Filtering the environment without a runner cutout.",
                 throttle_duration_sec=2.0
             )
-            self.pc_pub.publish(msg)
-            return
+            bboxes = []
 
         # Read the points from the cloud message
         # Returns a structured numpy array with fields 'x', 'y', 'z' (and possibly others)
@@ -198,32 +196,27 @@ class YoloMaskingNode(Node):
         # Begin with all environmental points and remove runner points.
         retained_mask = np.ones_like(z_val, dtype=bool)
 
-        for detection in self.latest_bboxes:
+        for detection in bboxes:
             # bbox center and sizes
             cx_box = detection.bbox.center.position.x
             cy_box = detection.bbox.center.position.y
             size_x = detection.bbox.size_x
             size_y = detection.bbox.size_y
 
-            xmin = cx_box - size_x / 2.0
-            xmax = cx_box + size_x / 2.0
-            ymin = cy_box - size_y / 2.0
-            ymax = cy_box + size_y / 2.0
+            padding = float(
+                self.get_parameter("runner_bbox_padding_fraction").value
+            )
+            xmin = cx_box - size_x * (0.5 + padding)
+            xmax = cx_box + size_x * (0.5 + padding)
+            ymin = cy_box - size_y * (0.5 + padding)
+            ymax = cy_box + size_y * (0.5 + padding)
 
             # Find points projecting inside this bounding box
             in_box = (u >= xmin) & (u <= xmax) & (v >= ymin) & (v <= ymax)
-            if np.any(in_box):
-                # Filter out background clutter and ground plane noise using median depth
-                box_depths = z_val[in_box]
-                median_depth = np.median(box_depths)
-
-                # Check which points inside the box are within the depth tolerance
-                close_to_median = np.abs(box_depths - median_depth) <= self.depth_tolerance
-
-                # Remove the foreground runner surface while keeping background
-                # geometry that merely projects through the same rectangle.
-                in_box_indices = np.where(in_box)[0]
-                retained_mask[in_box_indices[close_to_median]] = False
+            # For navigation the person must create a fully clear corridor,
+            # not a partial silhouette containing arms, legs, and edge-depth
+            # leakage. Remove the complete padded 2-D runner projection.
+            retained_mask[in_box] = False
 
         # Extract the filtered 3D points
         # Monocular depth often lifts the entire runway above the fitted plane.
@@ -236,8 +229,11 @@ class YoloMaskingNode(Node):
         image_height = max(1.0, 2.0 * self.cy)
         lower_image = v >= image_height * horizon
         projected_height = image_height - v
+        # Limit the image heuristic to the lowest portion of the frame. Plane
+        # fitting performs the main ground removal; a broad lower-image mask
+        # also erased the bases of the crate and barrel.
         ground_image = lower_image & (
-            projected_height <= image_height * keep_height
+            projected_height <= image_height * min(keep_height, 0.16)
         )
         retained_mask &= ~ground_image
         filtered_points = np.column_stack((

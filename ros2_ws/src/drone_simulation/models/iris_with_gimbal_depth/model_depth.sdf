@@ -50,8 +50,10 @@
       <!-- A standard Gazebo camera publishes RGB only. The yaw cancels the
            payload link's -90 degree yaw, preserving body-forward viewing. -->
       <sensor name="tracking_camera" type="camera">
-        <!-- A small downward pitch keeps the complete runner visible during
-             takeoff and forward acceleration. -->
+        <!-- A small upward pitch keeps the complete runner visible while the
+             Iris is on the runway; the gimbal can pitch down after takeoff. -->
+        <!-- Downward demonstration framing keeps the runner visible while
+             the Iris pitches during forward acceleration. -->
         <pose>0 0 0.06 0 0.20 1.5708</pose>
         <topic>/camera/image_raw</topic>
         <update_rate>15</update_rate>

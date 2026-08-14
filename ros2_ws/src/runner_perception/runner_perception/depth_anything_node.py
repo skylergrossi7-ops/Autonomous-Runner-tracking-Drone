@@ -63,13 +63,19 @@ class DepthAnythingNode(Node):
         self.declare_parameter("max_depth_metres", 80.0)
         self.declare_parameter("maximum_publish_depth_metres", 20.0)
         self.declare_parameter("depth_scale", 1.0)
+        self.declare_parameter("depth_offset_metres", 0.0)
+        self.declare_parameter("minimum_publish_depth_metres", 1.0)
         self.declare_parameter("pointcloud_stride", 2)
         self.declare_parameter("input_size", 350)
         self.declare_parameter("maximum_inference_rate", 5.0)
+        self.declare_parameter("cpu_threads", 4)
         self.declare_parameter("temporal_smoothing_alpha", 0.55)
         self.declare_parameter("spatial_median_kernel", 3)
         self.declare_parameter("sky_mask_enabled", False)
         self.declare_parameter("sky_horizon_fraction", 0.46)
+        self.declare_parameter("confidence_filter_enabled", True)
+        self.declare_parameter("maximum_local_relative_error", 0.18)
+        self.declare_parameter("maximum_temporal_relative_error", 0.35)
         self.declare_parameter("image_topic", "/camera/image_raw")
         self.declare_parameter("camera_info_topic", "/camera/camera_info")
         self.declare_parameter("depth_topic", "/camera/depth_ai/depth_image")
@@ -84,6 +90,7 @@ class DepthAnythingNode(Node):
         self._stop_worker = threading.Event()
         self._previous_depth = None
         self._model = self._load_model()
+        self._inference_samples = []
 
         self._depth_publisher = self.create_publisher(
             Image, str(self.get_parameter("depth_topic").value), SENSOR_QOS
@@ -137,6 +144,8 @@ class DepthAnythingNode(Node):
         from depth_anything_v2.dpt import DepthAnythingV2
 
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        if self._device == "cpu":
+            torch.set_num_threads(max(1, int(self.get_parameter("cpu_threads").value)))
         config = dict(MODEL_CONFIGS[model_size])
         config["max_depth"] = float(
             self.get_parameter("max_depth_metres").value
@@ -183,12 +192,16 @@ class DepthAnythingNode(Node):
             return
         try:
             bgr = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
+            inference_started = time.monotonic()
             with torch.inference_mode():
                 depth = self._model.infer_image(
                     bgr, int(self.get_parameter("input_size").value)
                 )
             depth = np.asarray(depth, dtype=np.float32)
+            # Metric calibration: measured_distance = model_depth * scale + offset.
+            # The Gazebo runway calibration currently uses scale=0.5, offset=0.
             depth *= float(self.get_parameter("depth_scale").value)
+            depth += float(self.get_parameter("depth_offset_metres").value)
             if depth.shape != bgr.shape[:2]:
                 depth = cv2.resize(
                     depth,
@@ -200,6 +213,8 @@ class DepthAnythingNode(Node):
                 if kernel % 2 == 0:
                     kernel += 1
                 depth = cv2.medianBlur(depth, kernel)
+            previous_depth = self._previous_depth
+            confidence_mask = self._confidence_mask(depth, previous_depth)
             alpha = float(self.get_parameter("temporal_smoothing_alpha").value)
             alpha = min(1.0, max(0.0, alpha))
             if self._previous_depth is not None and self._previous_depth.shape == depth.shape:
@@ -211,7 +226,14 @@ class DepthAnythingNode(Node):
             maximum = float(
                 self.get_parameter("maximum_publish_depth_metres").value
             )
-            depth[~np.isfinite(depth) | (depth <= 0.0) | (depth > maximum)] = np.nan
+            minimum = float(
+                self.get_parameter("minimum_publish_depth_metres").value
+            )
+            invalid = (
+                ~np.isfinite(depth) | (depth < minimum) | (depth > maximum)
+                | ~confidence_mask
+            )
+            depth[invalid] = np.nan
             depth_message = self._bridge.cv2_to_imgmsg(depth, encoding="32FC1")
             depth_message.header = message.header
             depth_message.header.frame_id = str(
@@ -226,10 +248,20 @@ class DepthAnythingNode(Node):
                 horizon_fraction=float(
                     self.get_parameter("sky_horizon_fraction").value
                 ),
+                bgr=bgr,
             )
             self._points_publisher.publish(
                 self._depth_to_pointcloud(cloud_depth, depth_message.header)
             )
+            elapsed = time.monotonic() - inference_started
+            self._inference_samples.append(elapsed)
+            if len(self._inference_samples) >= 10:
+                mean = float(np.mean(self._inference_samples))
+                self.get_logger().info(
+                    f"Depth inference mean {mean:.3f}s ({1.0 / mean:.2f} Hz)",
+                    throttle_duration_sec=5.0,
+                )
+                self._inference_samples.clear()
         except Exception as error:
             self.get_logger().error(f"Depth inference failed: {error}")
         finally:
@@ -237,6 +269,29 @@ class DepthAnythingNode(Node):
             # itself exceeds the nominal period, start-time limiting otherwise
             # runs the model continuously and starves MAVLink heartbeats.
             self._last_inference_at = time.monotonic()
+
+    def _confidence_mask(self, depth, previous_depth):
+        """Reject unstable monocular predictions and isolated depth edges."""
+        valid = np.isfinite(depth) & (depth > 0.0)
+        if not bool(self.get_parameter("confidence_filter_enabled").value):
+            return valid
+        local = cv2.medianBlur(depth.astype(np.float32), 5)
+        denominator = np.maximum(np.abs(local), 0.25)
+        local_error = np.abs(depth - local) / denominator
+        confident = valid & (
+            local_error <= float(
+                self.get_parameter("maximum_local_relative_error").value
+            )
+        )
+        if previous_depth is not None and previous_depth.shape == depth.shape:
+            temporal_denominator = np.maximum(np.abs(previous_depth), 0.25)
+            temporal_error = np.abs(depth - previous_depth) / temporal_denominator
+            previous_valid = np.isfinite(previous_depth) & (previous_depth > 0.0)
+            temporal_limit = float(
+                self.get_parameter("maximum_temporal_relative_error").value
+            )
+            confident &= ~previous_valid | (temporal_error <= temporal_limit)
+        return confident
 
     def destroy_node(self):
         self._stop_worker.set()

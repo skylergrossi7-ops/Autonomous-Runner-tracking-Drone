@@ -43,6 +43,7 @@ class DemoRecorder(Node):
         self.filtered = None
         self.costmap = None
         self.vehicle_yaw = 0.0
+        self.obstacle_components = 0
         self.intrinsics = None
         self._topic_subscriptions = [
             self.create_subscription(
@@ -71,10 +72,29 @@ class DemoRecorder(Node):
 
     def depth_callback(self, message):
         depth = self.bridge.imgmsg_to_cv2(message, "32FC1")
-        normalized = np.nan_to_num(depth, nan=20.0, posinf=20.0, neginf=0.0)
-        normalized = np.clip(normalized, 0.0, 20.0)
-        normalized = np.uint8(255.0 * (1.0 - normalized / 20.0))
+        valid = depth[np.isfinite(depth) & (depth >= 1.0) & (depth <= 15.0)]
+        if valid.size < 10:
+            self.depth = np.zeros((*depth.shape, 3), dtype=np.uint8)
+            return
+        low = max(1.0, float(np.percentile(valid, 2.0)))
+        high = min(15.0, float(np.percentile(valid, 98.0)))
+        high = max(high, low + 0.5)
+        clipped = np.clip(np.nan_to_num(depth, nan=high), low, high)
+        normalized = np.uint8(255.0 * (1.0 - (clipped - low) / (high - low)))
+        normalized = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(
+            normalized
+        )
         self.depth = cv2.applyColorMap(normalized, cv2.COLORMAP_TURBO)
+        self.depth[~np.isfinite(depth)] = 0
+        # Depth Anything is intentionally smooth. Overlay RGB edges only in
+        # the diagnostic view so obstacle outlines remain readable without
+        # altering the depth or point cloud used by navigation.
+        if self.rgb is not None and self.rgb.shape[:2] == depth.shape:
+            grey = cv2.cvtColor(self.rgb, cv2.COLOR_BGR2GRAY)
+            edges = cv2.Canny(grey, 60, 140)
+            self.depth[edges > 0] = (245, 245, 245)
+        cv2.putText(self.depth, f"range {low:.1f}-{high:.1f} m", (12, 468),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
     def info_callback(self, message):
         self.intrinsics = (message.k[0], message.k[4], message.k[2], message.k[5])
@@ -94,9 +114,21 @@ class DemoRecorder(Node):
             u = np.asarray(x * fx / z + cx, dtype=np.int32)
             v = np.asarray(y * fy / z + cy, dtype=np.int32)
             visible = (u >= 0) & (u < 640) & (v >= 0) & (v < 480)
-            colors = np.clip(255.0 * (1.0 - z[visible] / 20.0), 0, 255).astype(np.uint8)
-            canvas[v[visible], u[visible], 1] = 180 + colors // 4
-            canvas[v[visible], u[visible], 0] = colors // 3
+            visible_depth = z[visible]
+            low = max(1.0, float(np.percentile(visible_depth, 2.0)))
+            high = min(15.0, float(np.percentile(visible_depth, 98.0)))
+            high = max(high, low + 0.5)
+            values = np.uint8(
+                255.0 * (1.0 - np.clip((visible_depth - low) / (high - low), 0, 1))
+            )
+            colors = cv2.applyColorMap(values.reshape(-1, 1), cv2.COLORMAP_TURBO)[:, 0]
+            # Blend depth colour with optical-frame height: taller points are brighter.
+            height = -y[visible] * np.cos(0.20) + visible_depth * np.sin(0.20)
+            brightness = np.clip(0.65 + 0.20 * (height + 1.0), 0.45, 1.0)[:, None]
+            colors = np.uint8(np.clip(colors * brightness, 0, 255))
+            for px, py, color in zip(u[visible], v[visible], colors):
+                cv2.circle(canvas, (int(px), int(py)), 1,
+                           tuple(int(channel) for channel in color), -1)
         self.filtered = canvas
 
     def map_callback(self, message):
@@ -112,6 +144,16 @@ class DemoRecorder(Node):
         image[grid >= 100] = (0, 0, 255)     # lethal: red
         image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_NEAREST)
         occupied = int(np.count_nonzero(grid >= 50))
+        lethal = np.uint8(grid >= 80)
+        labels, _, statistics, _ = cv2.connectedComponentsWithStats(
+            lethal, connectivity=8
+        )
+        # Ignore isolated AI-depth speckles; a physical hazard must occupy at
+        # least 4 cells at the configured 8 cm costmap resolution.
+        self.obstacle_components = sum(
+            1 for label in range(1, labels)
+            if statistics[label, cv2.CC_STAT_AREA] >= 3
+        )
         center = (image.shape[1] // 2, image.shape[0] // 2)
         cv2.circle(image, center, 8, (255, 255, 255), 2)
         endpoint = (
@@ -123,6 +165,9 @@ class DemoRecorder(Node):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         cv2.putText(image, f"occupied cells: {occupied}", (14, 466),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+        cv2.putText(image, f"distinct footprints: {self.obstacle_components}",
+                    (320, 466), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                    (255, 255, 255), 2)
         self.costmap = image
 
     def pose_callback(self, message):
