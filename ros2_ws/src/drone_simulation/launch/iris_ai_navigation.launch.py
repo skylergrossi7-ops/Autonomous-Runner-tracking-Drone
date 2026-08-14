@@ -32,9 +32,9 @@ def generate_launch_description():
     sky_mask_enabled = LaunchConfiguration("sky_mask_enabled")
 
     common_ai_environment = {
-        "OMP_NUM_THREADS": "2",
-        "MKL_NUM_THREADS": "2",
-        "OPENBLAS_NUM_THREADS": "2",
+        "OMP_NUM_THREADS": "4",
+        "MKL_NUM_THREADS": "4",
+        "OPENBLAS_NUM_THREADS": "1",
     }
 
     return LaunchDescription([
@@ -44,7 +44,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "sky_mask_enabled",
             default_value="true",
-            description="Filter the fixed-camera sky region from PointCloud2",
+            description=(
+                "Filter fixed-camera Gazebo sky from PointCloud2. Set false "
+                "only for full-cloud demonstration recordings."
+            ),
         ),
         DeclareLaunchArgument(
             "model_code_path",
@@ -105,7 +108,7 @@ def generate_launch_description():
             name="iris_base_to_camera_optical",
             arguments=[
                 "--x", "0", "--y", "0", "--z", "0.06",
-                "--roll", "-1.7707963", "--pitch", "0",
+                "--roll", "-1.3707963", "--pitch", "0",
                 "--yaw", "-1.5707963", "--frame-id", "base_link",
                 "--child-frame-id", "camera_optical_frame",
             ],
@@ -142,16 +145,23 @@ def generate_launch_description():
                 "model_code_path": model_code_path,
                 "checkpoint_path": checkpoint_path,
                 "depth_scale": 0.5,
+                "depth_offset_metres": 0.0,
+                "minimum_publish_depth_metres": 1.0,
+                "maximum_publish_depth_metres": 15.0,
                 "input_size": 256,
                 "pointcloud_stride": 4,
-                "maximum_inference_rate": 1.0,
+                "maximum_inference_rate": 4.0,
+                "cpu_threads": 4,
                 "temporal_smoothing_alpha": 0.55,
                 "spatial_median_kernel": 3,
                 # Fixed Gazebo camera: the upper 46% is always above the
                 # runway horizon. Keep the diagnostic depth image intact but
                 # exclude those false monocular sky depths from PointCloud2.
                 "sky_mask_enabled": sky_mask_enabled,
-                "sky_horizon_fraction": 0.46,
+                "sky_horizon_fraction": 0.62,
+                "confidence_filter_enabled": True,
+                "maximum_local_relative_error": 0.30,
+                "maximum_temporal_relative_error": 0.60,
                 "use_sim_time": True,
             }],
             additional_env=common_ai_environment,
@@ -163,16 +173,22 @@ def generate_launch_description():
             parameters=[{
                 "use_sim_time": True,
                 "max_bbox_age": 4.0,
-                "max_z": 20.0,
+                "runner_bbox_padding_fraction": 0.08,
+                "max_z": 15.0,
                 "remove_ground_plane": True,
-                "ground_distance_threshold": 0.18,
+                "ground_distance_threshold": 0.10,
+                "ground_normal_tolerance": 0.20,
+                "ground_ransac_iterations": 100,
+                "ground_min_inliers": 150,
+                "ground_horizon_fraction": 0.54,
+                "ground_keep_height_fraction": 0.16,
+                "camera_upward_pitch_radians": 0.20,
                 # Keep the sensor-native optical frame and let tf2/Nav2 apply
                 # the exact installed camera transform into odom.
                 "output_frame": "camera_optical_frame",
                 "remove_isolated_points": True,
-                "isolation_voxel_size": 0.20,
-                "isolation_min_points": 3,
-                "camera_upward_pitch_radians": -0.20,
+                "isolation_voxel_size": 0.12,
+                "isolation_min_points": 2,
             }],
             output="screen",
         ),

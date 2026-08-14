@@ -125,7 +125,7 @@ echo "START: target projection and safe follower"
 start_group "${log_dir}/target_vector.log" \
   ros2 run runner_perception target_vector_node --ros-args \
   -p use_sim_time:=true -p runner_timeout_seconds:=8.0 \
-  -p camera_upward_pitch_radians:=-0.20
+  -p camera_upward_pitch_radians:=0.20
 start_group "${log_dir}/runner_follower.log" \
   ros2 run drone_control runner_follower --ros-args \
   --params-file "${workspace}/install/drone_control/share/drone_control/config/follower.yaml" \

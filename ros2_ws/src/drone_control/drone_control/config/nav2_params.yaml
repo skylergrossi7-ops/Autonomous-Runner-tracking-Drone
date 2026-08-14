@@ -10,7 +10,7 @@ local_costmap:
       rolling_window: true
       width: 40
       height: 40
-      resolution: 0.10
+      resolution: 0.08
       robot_radius: 0.45
       track_unknown_space: false
       plugins: ["voxel_layer", "inflation_layer"]
@@ -23,10 +23,10 @@ local_costmap:
         # Include slightly below-ground AI-depth noise and obstacles above the
         # two-metre flight height in the same rolling voxel column.
         origin_z: -1.0
-        z_resolution: 0.5
+        z_resolution: 0.35
         z_voxels: 16
         min_obstacle_height: 0.25
-        max_obstacle_height: 6.0
+        max_obstacle_height: 4.5
         unknown_threshold: 15
         mark_threshold: 1
         combination_method: 1
@@ -38,23 +38,24 @@ local_costmap:
           sensor_frame: ""
           clearing: true
           marking: true
-          # CPU-only Depth Anything can produce 4-6 second cloud gaps while
-          # Gazebo and YOLO share the laptop. Retain the last valid obstacle
-          # observation across that measured gap; fresh rays still clear it.
-          observation_persistence: 6.0
-          expected_update_rate: 0.0
+          # The optimized CPU pipeline publishes near 4 Hz. Short persistence
+          # prevents a moving runner's pre-mask points becoming a six-second
+          # phantom obstacle in the center corridor.
+          observation_persistence: 2.0
+          expected_update_rate: 0.25
           min_obstacle_height: 0.25
-          max_obstacle_height: 6.0
+          max_obstacle_height: 4.5
           raytrace_min_range: 0.30
-          raytrace_max_range: 20.0
+          raytrace_max_range: 15.0
           obstacle_min_range: 0.30
-          obstacle_max_range: 20.0
+          obstacle_max_range: 15.0
           inf_is_valid: false
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: true
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.50
+        cost_scaling_factor: 5.0
+        # Must remain at least the 0.45 m configured vehicle radius.
+        inflation_radius: 0.46
 
       always_send_full_costmap: true

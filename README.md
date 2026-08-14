@@ -28,6 +28,23 @@ a Nav2 rolling voxel costmap.
 
 ## Latest milestone: dynamic AI-depth obstacle mapping
 
+### Color-aware sky rejection and clear runner corridor
+
+The production mapper now removes an expanded sky region by color and top-edge
+connectivity instead of deleting every point above a fixed image row. This
+preserves tall obstacles, removes sky/cloud depth noise, and masks the complete
+padded runner silhouette so the person does not become a centerline obstacle.
+Depth visualization uses percentile contrast and RGB edge guidance so the
+crate, post, runner, and barrel remain recognizable.
+
+![Color-aware sky mask, detailed depth and separated costmap footprints](docs/media/sky_corridor_mapping.png)
+
+[Watch the 50-second sky-mask and clear-corridor mapping demonstration](docs/media/sky_corridor_mapping.mp4)
+
+The recorded costmap reports three distinct static obstacle footprints, with a
+fourth transient component appearing during scene updates. Older demonstration
+media remains below to preserve project history.
+
 ![YOLO, AI depth, runner cutout, and local costmap](docs/media/dynamic_depth_costmap_demo.png)
 
 [Watch the 20-second dynamic mapping demonstration](docs/media/dynamic_depth_costmap_demo.mp4)
