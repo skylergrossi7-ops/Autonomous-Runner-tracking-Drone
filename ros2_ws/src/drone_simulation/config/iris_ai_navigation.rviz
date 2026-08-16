@@ -141,12 +141,12 @@ Visualization Manager:
       Distance: 10
       Focal Point:
         X: 0
-        Y: 4
-        Z: 0.8
+        Y: 0
+        Z: 0.5
       Pitch: 0.55
       Yaw: 3.14
       Near Clip Distance: 0.01
-      Target Frame: odom
+      Target Frame: base_link
 Window Geometry:
   Height: 900
   Width: 1500

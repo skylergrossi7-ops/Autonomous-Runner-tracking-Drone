@@ -11,6 +11,12 @@ local_costmap:
       width: 40
       height: 40
       resolution: 0.08
+      # Seed the 500 x 500 rolling grid symmetrically around base_link at
+      # odom zero. Starting from the default zero origin makes the first
+      # negative rolling-window shift truncate by one cell, visibly moving
+      # the robot marker right/up. These remain rolling initial values.
+      origin_x: -20.0
+      origin_y: -20.0
       robot_radius: 0.45
       track_unknown_space: false
       plugins: ["voxel_layer", "inflation_layer"]
