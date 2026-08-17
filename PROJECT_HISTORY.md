@@ -235,3 +235,30 @@ validated 1 Hz, stride-4 cloud configuration with eight-second freshness gates.
 
 This is the frozen runner-following baseline for the next phase: universal
 local pathfinding and reactive obstacle avoidance. All prior media is retained.
+
+## 11. TF-aligned local costmap origin
+
+The rolling Nav2 costmap previously started one grid cell right and above the
+drone. The default zero origin caused the first negative rolling-window shift
+to truncate by one cell. The map now starts with a symmetric half-width origin,
+while continuing to roll from the live `odom -> base_link` transform.
+
+The diagnostic recorder no longer assumes that the drone is at the image
+midpoint. It calculates the real grid cell from TF and the published
+`OccupancyGrid` origin, rotates around that cell, and reports the centering
+error directly. RViz now follows `base_link` with a zero-centered focal point.
+
+| Alignment validation | Result |
+| --- | ---: |
+| Grid frame | `odom` |
+| Grid dimensions tested | 200 x 200 at 0.10 m |
+| Previous center error | 0.141 m |
+| Corrected center error | 0.0000002 m |
+| Live samples passed | 5 / 5 |
+
+![TF-aligned local costmap](docs/media/costmap_origin_centering.png)
+
+[Watch the centered local-costmap demonstration](docs/media/costmap_origin_centering.mp4)
+
+All earlier screenshots and recordings remain in `docs/media/` to preserve the
+project's development history.

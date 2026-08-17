@@ -156,6 +156,22 @@ camera video is 640x480 at 10 FPS with 150 frames; the external Gazebo video is
 The earlier short-distance video and evidence remain in the repository to
 preserve the visible development history.
 
+## Centered rolling local costmap
+
+The local voxel map now seeds its rolling origin symmetrically around
+`base_link`. The diagnostic display derives the drone cell and heading from TF
+instead of assuming a fixed array midpoint, and RViz follows the drone frame.
+
+![Centered local voxel costmap](docs/media/costmap_origin_centering.png)
+
+[Watch the costmap-origin validation](docs/media/costmap_origin_centering.mp4)
+
+Run the reusable live check after launching the simulation:
+
+```bash
+python3 ros2_ws/scripts/check_costmap_alignment.py
+```
+
 ## Run the laptop-camera perception milestone
 
 Use a Windows Python environment so OpenCV can access the laptop camera:

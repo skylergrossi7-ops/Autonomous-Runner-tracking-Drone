@@ -17,7 +17,9 @@ from rclpy.qos import (
     QoSProfile,
     ReliabilityPolicy,
 )
+from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2
+from tf2_ros import Buffer, TransformException, TransformListener
 
 
 SENSOR_QOS = QoSProfile(
@@ -45,6 +47,8 @@ class DemoRecorder(Node):
         self.vehicle_yaw = 0.0
         self.obstacle_components = 0
         self.intrinsics = None
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
         self._topic_subscriptions = [
             self.create_subscription(
                 Image, "/perception/debug_image", self.rgb_callback, SENSOR_QOS
@@ -142,7 +146,76 @@ class DemoRecorder(Node):
         image[(grid > 0) & (grid < 50)] = (0, 180, 255)  # inflated: amber
         image[(grid >= 50) & (grid < 100)] = (0, 80, 255)  # high: orange
         image[grid >= 100] = (0, 0, 255)     # lethal: red
+        map_frame = message.header.frame_id or "odom"
+        robot_x = None
+        robot_y = None
+        robot_yaw = self.vehicle_yaw
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                map_frame, "base_link", Time()
+            ).transform
+            robot_x = float(transform.translation.x)
+            robot_y = float(transform.translation.y)
+            quaternion = transform.rotation
+            robot_yaw = float(np.arctan2(
+                2.0 * (
+                    quaternion.w * quaternion.z
+                    + quaternion.x * quaternion.y
+                ),
+                1.0 - 2.0 * (
+                    quaternion.y * quaternion.y
+                    + quaternion.z * quaternion.z
+                ),
+            ))
+        except TransformException:
+            pass
+
+        origin = message.info.origin
+        origin_quaternion = origin.orientation
+        origin_yaw = float(np.arctan2(
+            2.0 * (
+                origin_quaternion.w * origin_quaternion.z
+                + origin_quaternion.x * origin_quaternion.y
+            ),
+            1.0 - 2.0 * (
+                origin_quaternion.y * origin_quaternion.y
+                + origin_quaternion.z * origin_quaternion.z
+            ),
+        ))
+        if robot_x is None or robot_y is None:
+            robot_grid_x = image.shape[1] / 2.0
+            robot_grid_y = image.shape[0] / 2.0
+        else:
+            delta_x = robot_x - float(origin.position.x)
+            delta_y = robot_y - float(origin.position.y)
+            cosine = np.cos(origin_yaw)
+            sine = np.sin(origin_yaw)
+            robot_grid_x = (
+                cosine * delta_x + sine * delta_y
+            ) / message.info.resolution
+            robot_grid_y_up = (
+                -sine * delta_x + cosine * delta_y
+            ) / message.info.resolution
+            robot_grid_y = image.shape[0] - robot_grid_y_up
+
+        robot_grid = (float(robot_grid_x), float(robot_grid_y))
+        yaw_in_grid = robot_yaw - origin_yaw
+        rotation = cv2.getRotationMatrix2D(
+            robot_grid, 90.0 - np.degrees(yaw_in_grid), 1.0
+        )
+        image = cv2.warpAffine(
+            image, rotation, (image.shape[1], image.shape[0]),
+            flags=cv2.INTER_NEAREST, borderValue=(35, 35, 35)
+        )
         image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_NEAREST)
+        center = (
+            int(round(robot_grid_x * 640.0 / message.info.width)),
+            int(round(robot_grid_y * 480.0 / message.info.height)),
+        )
+        center = (
+            int(np.clip(center[0], 0, image.shape[1] - 1)),
+            int(np.clip(center[1], 0, image.shape[0] - 1)),
+        )
         occupied = int(np.count_nonzero(grid >= 50))
         lethal = np.uint8(grid >= 80)
         labels, _, statistics, _ = cv2.connectedComponentsWithStats(
@@ -154,15 +227,20 @@ class DemoRecorder(Node):
             1 for label in range(1, labels)
             if statistics[label, cv2.CC_STAT_AREA] >= 3
         )
-        center = (image.shape[1] // 2, image.shape[0] // 2)
         cv2.circle(image, center, 8, (255, 255, 255), 2)
-        endpoint = (
-            int(center[0] + 42 * np.cos(self.vehicle_yaw)),
-            int(center[1] - 42 * np.sin(self.vehicle_yaw)),
-        )
+        endpoint = (center[0], center[1] - 42)
         cv2.arrowedLine(image, center, endpoint, (255, 255, 255), 3, tipLength=0.3)
         cv2.putText(image, "DRONE", (center[0] + 12, center[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        center_offset_m = message.info.resolution * float(np.hypot(
+            robot_grid_x - message.info.width / 2.0,
+            robot_grid_y - message.info.height / 2.0,
+        ))
+        cv2.putText(
+            image, f"base_link centering error: {center_offset_m:.2f} m",
+            (14, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.48,
+            (255, 255, 255), 1,
+        )
         cv2.putText(image, f"occupied cells: {occupied}", (14, 466),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
         cv2.putText(image, f"distinct footprints: {self.obstacle_components}",
